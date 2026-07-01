@@ -5,15 +5,18 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { palette } from "@/constants/theme";
 import { ThemeProvider, useThemeContext } from "@/contexts/ThemeContext";
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <RootNavigation />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <RootNavigation />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 

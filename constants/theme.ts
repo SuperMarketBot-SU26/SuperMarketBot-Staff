@@ -426,4 +426,4 @@ export const Fonts = {
 };
 
 /* ─── Re-export robot data ──────────────────────────────────────────────── */
-export { FLOORS, MAP_ROBOTS, ROBOTS } from "@/app/staff/robotsData";
+export { FLOORS, MAP_ROBOTS, ROBOTS } from "@/constants/robotsData";

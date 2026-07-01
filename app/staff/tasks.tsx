@@ -179,7 +179,7 @@ function TaskCard({ task, onAcknowledge }: { task: Task; onAcknowledge: (id: num
               style={[styles.taskActionBtn, { backgroundColor: cfg.bar }]}
               onPress={() => {
                 if (task.category === "robot") {
-                  const path = `/staff/robot-detail?id=${task.title.replace("🤖 ", "")}`;
+                  const path = `/staff/robot-nav?id=${task.title.replace("🤖 ", "")}`;
                   router.push(path as any);
                 } else {
                   // Non-robot tasks: route to the robots list as a generic target

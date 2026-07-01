@@ -41,3 +41,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Local agent notes (unfinished-integration docs, hand-offs, etc.)
+# Anything dropped here is not tracked by git. See localnote/README.md.
+localnote/

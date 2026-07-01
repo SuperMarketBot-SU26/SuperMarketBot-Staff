@@ -12,6 +12,7 @@ Mobile app for supermarket staff to monitor and coordinate the in-store robot fl
 - **Cảnh Báo (Tasks & Alerts)** — A prioritized task feed (urgent / high / normal) grouped by category, with quick actions to acknowledge.
 - **Robot List** — Sortable list of every robot in the fleet with status, uptime, and signal strength.
 - **Robot Detail** — Per-robot telemetry: battery, firmware, serial, signal, active tasks, error log.
+- **Robot Nav** — Pings the robot's live location on the store map. Opens when staff tap "Xử lý" on a robot alert so they can walk to the robot and tap "Đã xử lý" on site.
 - **Light / Dark / System theme** — Manual toggle in the header (Sun / Moon) overrides the device scheme via `ThemeContext`.
 - **Side drawer navigation** — Hamburger slides in a left-side panel with all sections.
 
@@ -142,9 +143,11 @@ Routes are file-based under `app/`. The root stack currently exposes:
 | `/`              | `app/index.tsx`       | Redirects to `/staff/fleet`          |
 | `/staff`         | `app/staff/_layout.tsx` | Shell: header + sidebar           |
 | `/staff/fleet`   | `app/staff/fleet.tsx` | Bản Đồ (default landing)             |
+| `/staff/fleet-map` | `app/staff/fleet-map.tsx` | Fullscreen pan/zoom map (tap blank area of the mini map to open) |
 | `/staff/tasks`   | `app/staff/tasks.tsx` | Cảnh Báo                             |
 | `/staff/robots`  | `app/staff/robots.tsx` | Robot list                          |
 | `/staff/robot-detail` | `app/staff/robot-detail.tsx` | Telemetry + error log     |
+| `/staff/robot-nav`   | `app/staff/robot-nav.tsx`   | Live robot location pin (from "Xử lý" on a robot alert) |
 | `/modal`         | `app/modal.tsx`       | Generic modal                        |
 
 ---

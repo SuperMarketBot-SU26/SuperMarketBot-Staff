@@ -78,12 +78,13 @@ function StatusDot({ status, pulse = false }: { status: "active" | "standby" | "
 }
 
 /* ─── Map Canvas ─────────────────────────────────────────────────────── */
-function MapCanvas({ onRobotPress }: { onRobotPress: (id: string) => void }) {
+function MapCanvas({ onRobotPress, onOpenFullscreen }: { onRobotPress: (id: string) => void; onOpenFullscreen?: () => void }) {
   const isDark = useIsDark();
   const mapH = 260;
 
   return (
     <Pressable
+      onPress={onOpenFullscreen}
       style={[
         styles.mapContainer,
         {
@@ -301,7 +302,10 @@ export default function StaffFleetPage() {
       <Legend />
 
       {/* ── Map ────────────────────────────────────────────────── */}
-      <MapCanvas onRobotPress={handleRobotPress} />
+      <MapCanvas
+        onRobotPress={handleRobotPress}
+        onOpenFullscreen={() => router.push("/staff/fleet-map" as any)}
+      />
 
       {/* ── Robot List ─────────────────────────────────────────── */}
       <View style={styles.robotListSection}>
