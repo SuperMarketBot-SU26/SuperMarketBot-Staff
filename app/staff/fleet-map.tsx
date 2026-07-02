@@ -11,10 +11,9 @@
  *  - Reset / fit-to-screen button
  *  - Zoom +/− buttons (bottom-right)
  *
- * Robot pin coordinates come from MAP_ROBOTS.{x,y} (percent of the map's
- * natural size). When an SVG background is added, the SVG should be sized
- * to the same natural dimensions so the pins stay aligned. See
- * BackgroundLayer / MAP constants below for the integration contract.
+ * Robot pin coordinates come from `NormalizedRobot.position.{x,y}` (in
+ * map-units). The pins map 1:1 onto the SVG canvas below — see MAP_WIDTH
+ * / MAP_HEIGHT for the natural canvas size.
  */
 
 import React, { useCallback, useRef } from "react";
@@ -29,8 +28,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
-  runOnJS,
   type SharedValue,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -39,43 +36,76 @@ import {
   useIsDark,
   palette,
   DEVICE,
-  MAP_ROBOTS,
   robotStatusConfig,
 } from "@/constants/theme";
 import {
   BotIcon,
   BatteryIcon,
-  XIcon,
   RefreshIcon,
   PlusIcon,
   ChevronLeftIcon,
 } from "@/components/ui/staff-icons";
+import { useRobotList } from "@/hooks/useRobotList";
+import type { NormalizedRobot } from "@/services/api/robots";
 
 /* ─── Map coordinate system ─────────────────────────────────────────
  * The map's *natural* canvas. When the SVG background is added, render
  * it at MAP_WIDTH × MAP_HEIGHT dp inside BackgroundLayer (or, better,
  * use Svg viewBox="0 0 MAP_WIDTH MAP_HEIGHT" + preserveAspectRatio="xMidYMid meet"
- * so robot pin percentages map 1:1 to SVG coordinates).
+ * so robot pin positions map 1:1 to SVG coordinates).
+ *
+ * The BE's pose payload returns map-units in `position.{x,y}`. We treat
+ * those as the same coordinate system as the canvas for now. When the BE
+ * seeds a real MAP row with width/height, replace MAP_WIDTH/MAP_HEIGHT with
+ * those values (or expose them on `useFleetMapData`).
  */
 const MAP_WIDTH = 1000;
 const MAP_HEIGHT = 700;
+
+/** Project a robot's map-unit position onto the canvas, clamped to bounds. */
+function project(
+  pos: NormalizedRobot["position"],
+): { left: number; top: number } {
+  if (!pos) return { left: MAP_WIDTH / 2, top: MAP_HEIGHT / 2 };
+  return {
+    left: Math.min(MAP_WIDTH, Math.max(0, pos.x)),
+    top: Math.min(MAP_HEIGHT, Math.max(0, pos.y)),
+  };
+}
+
+/** Short subtitle for a robot on the map's bottom sheet (no live task API yet). */
+function describeRobot(r: NormalizedRobot): string {
+  switch (r.status) {
+    case "active":
+      return r.mode === "scanning"
+        ? "Đang kiểm kê"
+        : r.mode === "navigating"
+          ? "Đang dẫn đường"
+          : "Đang hoạt động";
+    case "standby":
+      return "Chờ nhiệm vụ";
+    case "charging":
+      return "Đang sạc";
+    case "error":
+      return r.batteryPct < 15 ? "Pin yếu — cần sạc" : "Đang báo lỗi";
+  }
+}
 
 /* ─── Single-robot pin (status-coloured, animated) ───────────────── */
 function MapPin({
   robot,
   onPress,
 }: {
-  robot: (typeof MAP_ROBOTS)[number];
-  onPress: (id: string) => void;
+  robot: NormalizedRobot;
+  onPress: (code: string) => void;
 }) {
   const isDark = useIsDark();
   const cfg = robotStatusConfig[robot.status];
-  const left = (robot.x / 100) * MAP_WIDTH;
-  const top = (robot.y / 100) * MAP_HEIGHT;
+  const { left, top } = project(robot.position);
 
   return (
     <Pressable
-      onPress={() => onPress(robot.id)}
+      onPress={() => onPress(robot.robotCode)}
       style={[styles.pinWrap, { left, top }]}
       hitSlop={12}
     >
@@ -103,7 +133,7 @@ function MapPin({
             { color: isDark ? "#ffffff" : palette.gray[900] },
           ]}
         >
-          {robot.id}
+          {robot.robotCode}
         </Text>
       </View>
     </Pressable>
@@ -182,6 +212,7 @@ export default function FleetMapPage() {
   const isDark = useIsDark();
   const containerW = useRef(0);
   const containerH = useRef(0);
+  const { robots } = useRobotList();
 
   // Shared values drive the viewport transform on the UI thread.
   const tx = useSharedValue(0);
@@ -300,12 +331,14 @@ export default function FleetMapPage() {
     [scale, tx, ty]
   );
 
-  /* ── Pin tap → /staff/robot-detail ── */
+  /* ── Pin tap → /staff/robot-detail?code=XXX ── */
   const handlePinPress = useCallback(
-    (robotId: string) => {
-      router.push(`/staff/robot-detail?id=${robotId}` as any);
+    (robotCode: string) => {
+      router.push(
+        `/staff/robot-detail?code=${encodeURIComponent(robotCode)}` as any,
+      );
     },
-    [router]
+    [router],
   );
 
   /* ── Bottom sheet state ── */
@@ -322,8 +355,8 @@ export default function FleetMapPage() {
         >
           <Animated.View style={[styles.content, contentStyle]}>
             <BackgroundLayer />
-            {MAP_ROBOTS.map((robot) => (
-              <MapPin key={robot.id} robot={robot} onPress={handlePinPress} />
+            {(robots ?? []).map((robot) => (
+              <MapPin key={robot.robotCode} robot={robot} onPress={handlePinPress} />
             ))}
           </Animated.View>
         </Animated.View>
@@ -444,7 +477,7 @@ export default function FleetMapPage() {
               { color: isDark ? "#ffffff" : palette.gray[900] },
             ]}
           >
-            {MAP_ROBOTS.length} robot trên bản đồ
+            {robots ? `${robots.length} robot trên bản đồ` : "Đang tải…"}
           </Text>
           <TouchableOpacity
             onPress={() => setBottomExpanded((v) => !v)}
@@ -463,18 +496,18 @@ export default function FleetMapPage() {
 
         {bottomExpanded && (
           <View style={styles.robotList}>
-            {MAP_ROBOTS.map((robot) => {
+            {(robots ?? []).map((robot) => {
               const cfg = robotStatusConfig[robot.status];
               return (
                 <TouchableOpacity
-                  key={robot.id}
+                  key={robot.robotCode}
                   style={[
                     styles.robotRow,
                     {
                       backgroundColor: isDark ? palette.gray[800] : palette.gray[100],
                     },
                   ]}
-                  onPress={() => handlePinPress(robot.id)}
+                  onPress={() => handlePinPress(robot.robotCode)}
                   activeOpacity={0.7}
                 >
                   <View
@@ -492,7 +525,7 @@ export default function FleetMapPage() {
                         { color: isDark ? "#ffffff" : palette.gray[900] },
                       ]}
                     >
-                      {robot.id}
+                      {robot.robotCode}
                     </Text>
                     <Text
                       style={[
@@ -501,14 +534,14 @@ export default function FleetMapPage() {
                       ]}
                       numberOfLines={1}
                     >
-                      {robot.task}
+                      {describeRobot(robot)}
                     </Text>
                   </View>
                   <View style={styles.robotBattery}>
                     <BatteryIcon
                       size={12}
                       color={
-                        robot.battery < 25
+                        robot.batteryPct < 25
                           ? palette.red[500]
                           : isDark
                             ? palette.gray[400]
@@ -520,7 +553,7 @@ export default function FleetMapPage() {
                         styles.robotBatteryText,
                         {
                           color:
-                            robot.battery < 25
+                            robot.batteryPct < 25
                               ? palette.red[500]
                               : isDark
                                 ? "#ffffff"
@@ -528,7 +561,7 @@ export default function FleetMapPage() {
                         },
                       ]}
                     >
-                      {robot.battery}%
+                      {robot.batteryPct}%
                     </Text>
                   </View>
                 </TouchableOpacity>

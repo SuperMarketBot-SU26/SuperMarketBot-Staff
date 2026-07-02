@@ -426,6 +426,3 @@ export const Fonts = {
     mono: "monospace",
   },
 };
-
-/* ─── Re-export robot data ──────────────────────────────────────────────── */
-export { FLOORS, MAP_ROBOTS, ROBOTS } from "@/constants/robotsData";

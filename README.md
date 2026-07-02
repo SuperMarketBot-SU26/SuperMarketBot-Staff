@@ -81,8 +81,6 @@ services/
     robots.ts              # GET /api/robots, GET /api/robots/{code}/pose
     tasks.ts               # GET /api/staff/tasks (Out-of-Stock Handler)
 
-constants/robotsData.ts    # Legacy mock data (only fleet-map.tsx still uses it)
-
 assets/images/             # App icon, splash, foreground/background
 app.json                   # Expo config (orientation, plugins, experiments)
 .env.example               # Template for EXPO_PUBLIC_API_BASE_URL
