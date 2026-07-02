@@ -8,11 +8,12 @@ Mobile app for supermarket staff to monitor and coordinate the in-store robot fl
 
 ## ✨ Features
 
-- **Bản Đồ (Fleet Map)** — Live overview of all robots per floor (1F / 2F / 3F), with battery and signal indicators.
-- **Cảnh Báo (Tasks & Alerts)** — A prioritized task feed (urgent / high / normal) grouped by category, with quick actions to acknowledge.
-- **Robot List** — Sortable list of every robot in the fleet with status, uptime, and signal strength.
-- **Robot Detail** — Per-robot telemetry: battery, firmware, serial, signal, active tasks, error log.
-- **Robot Nav** — Pings the robot's live location on the store map. Opens when staff tap "Xử lý" on a robot alert so they can walk to the robot and tap "Đã xử lý" on site.
+- **Đăng nhập (Login)** — Email + password against `POST /api/auth/login`; tokens stored in `expo-secure-store`. Auto-refresh on 401 via `POST /api/auth/refresh`.
+- **Bản Đồ (Fleet)** — Live overview of all robots with battery, mode and status (active / standby / error / charging). Pull-to-refresh.
+- **Cảnh Báo (Tasks & Alerts)** — A prioritized feed (urgent / high / normal). **Hàng hóa** tab is live (`GET /api/staff/tasks`, Out-of-Stock Handler). **Robot** tab is live (`GET /api/robots` → derive alerts from battery / mode / last-seen).
+- **Robot List** — Live roster from `GET /api/robots` (+ pose) with per-status summary strip.
+- **Robot Detail** — `GET /api/robots/{code}/pose` for live position; battery, mode, last-seen.
+- **Robot Nav** — When staff tap "Xử lý" on a robot alert, this screen pings the robot's live location and pins it on the mini-map so the staff can walk to the robot and tap "Đã xử lý".
 - **Light / Dark / System theme** — Manual toggle in the header (Sun / Moon) overrides the device scheme via `ThemeContext`.
 - **Side drawer navigation** — Hamburger slides in a left-side panel with all sections.
 
@@ -28,8 +29,8 @@ Mobile app for supermarket staff to monitor and coordinate the in-store robot fl
 | Animation    | `react-native-reanimated` 4 + `react-native-worklets`     |
 | Gestures     | `react-native-gesture-handler`                            |
 | Safe Areas   | `react-native-safe-area-context`                          |
-| Icons        | `expo-symbols`, `@expo/vector-icons`, custom SVG set      |
-| Status Bar   | `expo-status-bar`                                         |
+| Icons        | Custom SVG set (`components/ui/staff-icons.tsx`)          |
+| Storage      | `expo-secure-store` (auth tokens)                         |
 | Language     | TypeScript (`strict`), React Compiler enabled             |
 
 ---
@@ -38,41 +39,53 @@ Mobile app for supermarket staff to monitor and coordinate the in-store robot fl
 
 ```
 app/                       # File-based routes (expo-router)
-  _layout.tsx              # Root stack + ThemeProvider
-  index.tsx                # Redirect → /staff/fleet
-  modal.tsx                # Modal route
+  _layout.tsx              # Root stack + AuthProvider + ThemeProvider
+  index.tsx                # Redirect → /staff/fleet (auth-aware via RootNavigation)
+  login.tsx                # Đăng nhập
   staff/
     _layout.tsx            # Phone-frame shell, header, sidebar
     index.tsx              # /staff → /staff/fleet
     fleet.tsx              # Bản Đồ
-    tasks.tsx              # Cảnh Báo
+    fleet-map.tsx          # Fullscreen pan/zoom map (placeholder)
+    tasks.tsx              # Cảnh Báo (Hàng hóa + Robot tabs)
     robots.tsx             # Robot list
     robot-detail.tsx       # Per-robot telemetry
-    robotsData.ts          # Robot + Floor data (single source of truth)
+    robot-nav.tsx          # Live robot location pin
 
 components/
   ui/
-    staff-icons.tsx        # Custom SVG icon set
-    icon-symbol.tsx        # SF Symbols bridge
-    collapsible.tsx
-  themed-text.tsx
-  themed-view.tsx
-  parallax-scroll-view.tsx
-  haptic-tab.tsx
-  external-link.tsx
-  hello-wave.tsx
+    staff-icons.tsx        # Hand-rolled SVG icon set (~20 used)
 
 constants/
-  theme.ts                 # palette, lightTheme, darkTheme, typography,
-                           # spacing, radius, shadows, useAppTheme/useIsDark
+  theme.ts                 # palette, lightTheme/darkTheme, typography,
+                           # spacing, radius, shadows, useAppTheme/useIsDark,
+                           # robotStatusConfig, priorityConfig
 
 contexts/
+  AuthContext.tsx          # Global "am I logged in?" state + login/logout
   ThemeContext.tsx         # Light/Dark/System theme provider + useThemeToggle
 
-hooks/                     # use-color-scheme, use-theme-color
+hooks/
+  useApiErrorMessage.ts    # Translate ApiError → Vietnamese user-facing string
+  useRobotList.ts          # Shared list-with-poses loader for fleet / robots
+  useStaffTasks.ts         # Shared restock-task loader for tasks tab
+  use-color-scheme.ts / use-theme-color.ts (template)
+
+services/
+  api/
+    http.ts                # Tiny fetch wrapper (JSON, auth header, 401 refresh)
+    auth.ts                # login / refresh / logout
+    tokens.ts              # SecureStore wrapper (access + refresh + expiresAt)
+    config.ts              # EXPO_PUBLIC_API_BASE_URL + token keys
+    types.ts               # DTOs + UI-normalized types
+    robots.ts              # GET /api/robots, GET /api/robots/{code}/pose
+    tasks.ts               # GET /api/staff/tasks (Out-of-Stock Handler)
+
+constants/robotsData.ts    # Legacy mock data (only fleet-map.tsx still uses it)
 
 assets/images/             # App icon, splash, foreground/background
 app.json                   # Expo config (orientation, plugins, experiments)
+.env.example               # Template for EXPO_PUBLIC_API_BASE_URL
 ```
 
 ---
@@ -85,7 +98,20 @@ app.json                   # Expo config (orientation, plugins, experiments)
 npm install
 ```
 
-### 2. Start the dev server
+### 2. Configure the API URL
+
+```bash
+cp .env.example .env
+# Edit .env and set EXPO_PUBLIC_API_BASE_URL to your dev backend, e.g.:
+#   http://192.168.1.106:5000   (phone on the same Wi-Fi as the dev machine)
+#   http://localhost:5000       (web / emulator on the same machine)
+```
+
+`EXPO_PUBLIC_*` variables are inlined into the JS bundle at build time (Expo SDK 50+). Do **not** put secrets here.
+
+Restart the dev server with `npx expo start --clear` after editing the file.
+
+### 3. Start the dev server
 
 ```bash
 npx expo start
@@ -98,13 +124,26 @@ Then open the app in one of:
 - An **iOS simulator** (`i` key, macOS only).
 - A **development build** (`expo-dev-client`) for full native support.
 
-### 3. Reset to a clean starter (optional)
+---
 
-```bash
-npm run reset-project
-```
+## 🔌 API Layer
 
-Moves the current `app/` content to `app-example/` and creates a blank `app/`.
+| Endpoint                          | Wrapper                         |
+|-----------------------------------|---------------------------------|
+| `POST /api/auth/login`            | `services/api/auth.login`       |
+| `POST /api/auth/refresh`          | `services/api/auth.refresh`     |
+| `POST /api/auth/logout`           | `services/api/auth.logout`      |
+| `GET  /api/robots`                | `services/api/robots.listRobots`|
+| `GET  /api/robots/{code}/pose`    | `services/api/robots.getRobot`  |
+| `GET  /api/staff/tasks`           | `services/api/tasks.listRestockTasks` |
+
+The HTTP client (`services/api/http.ts`) is intentionally minimal:
+
+- Reads `EXPO_PUBLIC_API_BASE_URL` at startup.
+- Sets `Content-Type: application/json` on any request with a body.
+- Adds `Authorization: Bearer <accessToken>` unless `skipAuth: true`.
+- On `401` from a non-auth endpoint, tries `POST /api/auth/refresh` once and retries the original request.
+- Converts non-2xx responses into `ApiError` carrying the BE's error message.
 
 ---
 
@@ -138,30 +177,31 @@ The `ThemeProvider` (mounted in `app/_layout.tsx`) keeps the user's manual choic
 
 Routes are file-based under `app/`. The root stack currently exposes:
 
-| Path             | File                  | Purpose                              |
-|------------------|-----------------------|--------------------------------------|
-| `/`              | `app/index.tsx`       | Redirects to `/staff/fleet`          |
-| `/staff`         | `app/staff/_layout.tsx` | Shell: header + sidebar           |
-| `/staff/fleet`   | `app/staff/fleet.tsx` | Bản Đồ (default landing)             |
-| `/staff/fleet-map` | `app/staff/fleet-map.tsx` | Fullscreen pan/zoom map (tap blank area of the mini map to open) |
-| `/staff/tasks`   | `app/staff/tasks.tsx` | Cảnh Báo                             |
-| `/staff/robots`  | `app/staff/robots.tsx` | Robot list                          |
-| `/staff/robot-detail` | `app/staff/robot-detail.tsx` | Telemetry + error log     |
-| `/staff/robot-nav`   | `app/staff/robot-nav.tsx`   | Live robot location pin (from "Xử lý" on a robot alert) |
-| `/modal`         | `app/modal.tsx`       | Generic modal                        |
+| Path                       | File                              | Purpose                                       |
+|----------------------------|-----------------------------------|-----------------------------------------------|
+| `/`                        | `app/index.tsx`                   | Redirects to `/staff/fleet` (auth-gated)      |
+| `/login`                   | `app/login.tsx`                   | Đăng nhập                                     |
+| `/staff`                   | `app/staff/_layout.tsx`           | Shell: header + sidebar                       |
+| `/staff/fleet`             | `app/staff/fleet.tsx`             | Bản Đồ (default landing)                      |
+| `/staff/fleet-map`         | `app/staff/fleet-map.tsx`         | Fullscreen pan/zoom map (placeholder)         |
+| `/staff/tasks`             | `app/staff/tasks.tsx`             | Cảnh Báo                                      |
+| `/staff/robots`            | `app/staff/robots.tsx`            | Robot list                                    |
+| `/staff/robot-detail`      | `app/staff/robot-detail.tsx`      | Telemetry + live pose (`?code=…`)             |
+| `/staff/robot-nav`         | `app/staff/robot-nav.tsx`         | Live robot location pin (`?code=…`)           |
 
 ---
 
 ## 🧪 Scripts
 
-| Command            | What it does                                |
-|--------------------|---------------------------------------------|
-| `npm start`        | Run Expo dev server                         |
-| `npm run android`  | Start dev server + open Android target     |
-| `npm run ios`      | Start dev server + open iOS simulator       |
-| `npm run web`      | Start dev server + open web target          |
-| `npm run lint`     | Run `expo lint`                             |
-| `npm run reset-project` | Reset `app/` to a blank starter        |
+| Command                  | What it does                                          |
+|--------------------------|-------------------------------------------------------|
+| `npm start`              | Run Expo dev server                                   |
+| `npm run android`        | Start dev server + open Android target                |
+| `npm run ios`            | Start dev server + open iOS simulator                 |
+| `npm run web`            | Start dev server + open web target                    |
+| `npm run lint`           | Run `expo lint`                                       |
+| `npm run typecheck`      | Run `tsc --noEmit` over the project                   |
+| `npm run reset-project`  | Reset `app/` to a blank starter                       |
 
 ---
 
@@ -171,8 +211,9 @@ Routes are file-based under `app/`. The root stack currently exposes:
 - **Components:** Functional + hooks. Class components are not used.
 - **Imports:** Use the `@/` alias for project-root modules (configured in `tsconfig.json`).
 - **TypeScript:** Strict mode on. Avoid `any`; prefer `as const` and literal types.
-- **Icons:** Custom SVG set in `components/ui/staff-icons.tsx`. Falls back to SF Symbols on iOS via `icon-symbol.tsx`.
+- **Icons:** Custom SVG set in `components/ui/staff-icons.tsx`. Adding a new icon is just a function with `<Svg>` primitives — no font shipping required.
 - **Theme:** Always read `isDark` / `theme` from the hooks, never from `useColorScheme` directly. The user's manual override only takes effect through the context.
+- **API errors:** Always render `ApiError.message` through `useApiErrorMessage()` so 401s land as "Phiên đăng nhập đã hết hạn" consistently.
 
 ---
 

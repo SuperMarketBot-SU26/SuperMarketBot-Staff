@@ -1,19 +1,27 @@
 /**
  * Staff Tasks Page — Cảnh Báo
- * Shows real-time alerts for inventory and robot issues
+ *
+ * Two tabs:
+ *   • Hàng hóa → live data from `GET /api/staff/tasks` (Out-of-Stock Handler)
+ *   • Robot     → live data derived from `GET /api/robots`:
+ *                 any robot that isn't "active" with healthy battery is
+ *                 surfaced as a task (urgent when battery < 20% or offline).
+ *
+ * Both come from real APIs; the screen no longer ships hard-coded tasks.
  */
-import React, { useState } from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Pressable,
+  RefreshControl,
+  ActivityIndicator,
 } from "react-native";
-import Animated, { FadeIn, SlideInRight } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { useRouter } from "expo-router";
-import { useIsDark, palette, DEVICE, priorityConfig, FloorId } from "@/constants/theme";
+import { useIsDark, palette, DEVICE, priorityConfig } from "@/constants/theme";
 import {
   BotIcon,
   ShoppingBagIcon,
@@ -23,7 +31,10 @@ import {
   ChevronRightIcon,
   CheckCircleIcon,
 } from "@/components/ui/staff-icons";
-import { robotStatusConfig } from "@/constants/theme";
+import { useStaffTasks } from "@/hooks/useStaffTasks";
+import { useRobotList } from "@/hooks/useRobotList";
+import type { NormalizedRobot } from "@/services/api/robots";
+import { useApiErrorMessage } from "@/hooks/useApiErrorMessage";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 type Priority = "urgent" | "high" | "normal";
@@ -39,63 +50,81 @@ interface Task {
   location: string;
   time: string;
   acknowledged: boolean;
+  /** When `category === "robot"`, the underlying robot for deep-linking. */
+  robot?: NormalizedRobot;
 }
 
-/* ─── Mock Data ────────────────────────────────────────────────── */
-const INITIAL_TASKS: Task[] = [
-  {
-    id: 1, category: "hangHoa", priority: "urgent", issueType: "Hết kệ",
-    title: "Sữa TH True Milk 1L",
-    detail: "Kệ trống hoàn toàn — kho còn 24 hộp, cần bổ sung ngay",
-    location: "Kệ A · Hàng 1", time: "2 phút trước", acknowledged: false,
-  },
-  {
-    id: 2, category: "hangHoa", priority: "urgent", issueType: "Hết kệ",
-    title: "Bánh Mì Sandwich Kinh Đô 75g",
-    detail: "Kệ trống hoàn toàn — kho còn 20 gói",
-    location: "Kệ B · Hàng 2", time: "5 phút trước", acknowledged: false,
-  },
-  {
-    id: 3, category: "hangHoa", priority: "high", issueType: "Tồn thấp",
-    title: "Nước Ép Cam Tropicana 1L",
-    detail: "Chỉ còn 2 chai trên kệ (tối thiểu: 8) — kho trống",
-    location: "Kệ A · Hàng 4", time: "15 phút trước", acknowledged: false,
-  },
-  {
-    id: 4, category: "robot", priority: "urgent", issueType: "Pin thấp",
-    title: "SMB-04",
-    detail: "Robot mất kết nối WiFi đột ngột — không phản hồi lệnh",
-    location: "Khu B · Lối 2", time: "1 phút trước", acknowledged: false,
-  },
-  {
-    id: 5, category: "robot", priority: "high", issueType: "Lỗi điều hướng",
-    title: "SMB-01",
-    detail: "Sai lệch bản đồ, đang lặp vòng — cần hiệu chỉnh lại",
-    location: "Khu D · Hành lang", time: "12 phút trước", acknowledged: false,
-  },
-  {
-    id: 6, category: "robot", priority: "high", issueType: "Bị mắc kẹt",
-    title: "SMB-05",
-    detail: "Va chạm chướng ngại vật, tự dừng — cần nhân viên hỗ trợ",
-    location: "Khu C · Cổng chính", time: "4 phút trước", acknowledged: false,
-  },
-  {
-    id: 7, category: "hangHoa", priority: "normal", issueType: "Cần bổ sung",
-    title: "Vinamilk Sữa Tươi 180ml",
-    detail: "Tồn kệ: 4 hộp — dự kiến hết trong ~2 giờ",
-    location: "Kệ A · Hàng 2", time: "22 phút trước", acknowledged: true,
-  },
-];
+/* ─── Derive robot alerts from a robot list ────────────────────────── */
+function robotToTask(r: NormalizedRobot): Task | null {
+  // Anything that already reads as a real problem on the UI:
+  //   "error"      — battery < 15% / hard error
+  //   "charging"   — possibly stuck at dock
+  //   "standby"    — only flag if we've never heard from the robot
+  //   "active"     — only flag if battery is low (< 20%)
+  if (r.status === "active" && r.batteryPct >= 20) return null;
+
+  const priority: Priority =
+    r.status === "error" || r.batteryPct < 20 ? "urgent" : "high";
+
+  const issueType =
+    r.status === "error"
+      ? r.batteryPct < 15
+        ? "Pin yếu"
+        : "Lỗi"
+      : r.status === "charging"
+        ? "Đang sạc"
+        : !r.lastSeenAt
+          ? "Mất kết nối"
+          : "Chờ quá lâu";
+
+  return {
+    id: r.robotId,
+    category: "robot",
+    priority,
+    issueType,
+    title: r.robotCode,
+    detail:
+      r.status === "error"
+        ? `Pin ${r.batteryPct}% — cần kiểm tra.`
+        : r.status === "charging"
+          ? `Robot đang ở trạm sạc — pin ${r.batteryPct}%.`
+          : !r.lastSeenAt
+            ? "Chưa có dữ liệu telemetry trong hệ thống."
+            : "Robot đang chờ nhưng chưa được giao nhiệm vụ.",
+    location: r.position
+      ? `(${r.position.x.toFixed(0)}, ${r.position.y.toFixed(0)})`
+      : "Chưa có tọa độ",
+    time: r.lastSeenAt ? formatRelativeTime(r.lastSeenAt) : "—",
+    acknowledged: false,
+    robot: r,
+  };
+}
+
+/** Vietnamese-feeling relative label, reused from robot-detail. */
+function formatRelativeTime(iso: string): string {
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return iso;
+  const diffMs = Date.now() - ts;
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 1) return "vừa xong";
+  if (minutes < 60) return `${minutes} phút trước`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  const days = Math.round(hours / 24);
+  return `${days} ngày trước`;
+}
 
 /* ─── Issue Icon Map ────────────────────────────────────────────── */
 const ISSUE_ICONS: Record<string, React.ElementType> = {
   "Hết kệ": ShoppingBagIcon,
   "Tồn thấp": ShoppingBagIcon,
+  "Sắp hết": ShoppingBagIcon,
   "Cần bổ sung": ShoppingBagIcon,
   "Mất kết nối": AlertIcon,
-  "Bị mắc kẹt": AlertIcon,
-  "Pin thấp": AlertIcon,
-  "Lỗi điều hướng": AlertIcon,
+  "Pin yếu": AlertIcon,
+  "Lỗi": AlertIcon,
+  "Đang sạc": AlertIcon,
+  "Chờ quá lâu": AlertIcon,
 };
 
 /* ─── Task Card ─────────────────────────────────────────────────── */
@@ -117,11 +146,9 @@ function TaskCard({ task, onAcknowledge }: { task: Task; onAcknowledge: (id: num
         },
       ]}
     >
-      {/* Priority top bar */}
       <View style={[styles.priorityBar, { backgroundColor: cfg.bar }]} />
 
       <View style={styles.taskCardBody}>
-        {/* Top row */}
         <View style={styles.taskTopRow}>
           <View style={styles.taskIconRow}>
             <View
@@ -135,7 +162,13 @@ function TaskCard({ task, onAcknowledge }: { task: Task; onAcknowledge: (id: num
             <View>
               <View style={styles.taskBadgeRow}>
                 <View style={[styles.taskBadge, { backgroundColor: cfg.badge }]}>
-                  <Text style={[styles.taskBadgeText, { color: cfg.badgeText }]}>{cfg.bar === palette.red[500] ? "KHẨN CẤP" : cfg.bar === palette.orange[500] ? "CAO" : "THƯỜNG"}</Text>
+                  <Text style={[styles.taskBadgeText, { color: cfg.badgeText }]}>
+                    {task.priority === "urgent"
+                      ? "KHẨN CẤP"
+                      : task.priority === "high"
+                        ? "CAO"
+                        : "THƯỜNG"}
+                  </Text>
                 </View>
                 <View style={[styles.taskBadge, { backgroundColor: isDark ? palette.gray[700] : palette.gray[100] }]}>
                   <Text style={[styles.taskBadgeText, { color: isDark ? palette.gray[400] : palette.gray[500] }]}>
@@ -154,17 +187,14 @@ function TaskCard({ task, onAcknowledge }: { task: Task; onAcknowledge: (id: num
           {task.acknowledged && <CheckCircleIcon size={18} color={palette.emerald[500]} />}
         </View>
 
-        {/* Title */}
         <Text style={[styles.taskTitle, { color: isDark ? "#ffffff" : palette.gray[900] }]}>
-          {task.category === "robot" ? `🤖 ${task.title}` : task.title}
+          {task.title}
         </Text>
 
-        {/* Detail */}
         <Text style={[styles.taskDetail, { color: isDark ? palette.gray[400] : palette.gray[500] }]}>
           {task.detail}
         </Text>
 
-        {/* Location */}
         <View style={styles.taskLocationRow}>
           <MapPinIcon size={11} color={isDark ? palette.gray[600] : palette.gray[400]} />
           <Text style={[styles.taskLocationText, { color: isDark ? palette.gray[400] : palette.gray[500] }]}>
@@ -172,23 +202,24 @@ function TaskCard({ task, onAcknowledge }: { task: Task; onAcknowledge: (id: num
           </Text>
         </View>
 
-        {/* Actions */}
         {!task.acknowledged && (
           <View style={styles.taskActions}>
             <TouchableOpacity
               style={[styles.taskActionBtn, { backgroundColor: cfg.bar }]}
               onPress={() => {
-                if (task.category === "robot") {
-                  const path = `/staff/robot-nav?id=${task.title.replace("🤖 ", "")}`;
-                  router.push(path as any);
+                if (task.category === "robot" && task.robot) {
+                  router.push(
+                    `/staff/robot-detail?code=${encodeURIComponent(task.robot.robotCode)}` as any,
+                  );
                 } else {
-                  // Non-robot tasks: route to the robots list as a generic target
                   router.push("/staff/robots" as any);
                 }
               }}
               activeOpacity={0.8}
             >
-              <Text style={styles.taskActionBtnText}>Xử lý</Text>
+              <Text style={styles.taskActionBtnText}>
+                {task.category === "robot" ? "Đến robot" : "Xử lý"}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.taskAckBtn, { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] }]}
@@ -207,26 +238,71 @@ function TaskCard({ task, onAcknowledge }: { task: Task; onAcknowledge: (id: num
 /* ─── Main Page ─────────────────────────────────────────────────── */
 export default function StaffTasksPage() {
   const isDark = useIsDark();
-  const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
-  const [filter, setFilter] = useState<Category>("hangHoa");
+  const {
+    tasks: restockTasks,
+    error: restockError,
+    refreshing: restockRefreshing,
+    onRefresh: onRefreshRestock,
+    acknowledge: ackRestock,
+  } = useStaffTasks();
+  const {
+    robots,
+    error: robotError,
+    refreshing: robotRefreshing,
+    onRefresh: onRefreshRobots,
+  } = useRobotList();
+  const message = useApiErrorMessage();
 
-  const acknowledge = (id: number) =>
-    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, acknowledged: true } : t)));
+  const [filter, setFilter] = React.useState<Category>("hangHoa");
 
-  const visible = tasks.filter((t) => t.category === filter);
-  const pendingHH = tasks.filter((t) => t.category === "hangHoa" && !t.acknowledged).length;
-  const pendingRB = tasks.filter((t) => t.category === "robot" && !t.acknowledged).length;
+  // Restock tasks → unified Task shape
+  const hhTasks: Task[] = useMemo(
+    () =>
+      restockTasks.map((t) => ({
+        id: t.id,
+        category: "hangHoa" as const,
+        priority: t.priority,
+        issueType: t.issueType,
+        title: t.title,
+        detail: t.detail,
+        location: t.location,
+        time: formatRelativeTime(t.reportedAt),
+        acknowledged: t.acknowledged,
+      })),
+    [restockTasks],
+  );
+
+  // Robot alerts → unified Task shape (filter out healthy ones)
+  const robotTasks: Task[] = useMemo(() => {
+    if (!robots) return [];
+    return robots
+      .map(robotToTask)
+      .filter((t): t is Task => t !== null);
+  }, [robots]);
+
+  const visible = filter === "hangHoa" ? hhTasks : robotTasks;
+  const pendingHH = hhTasks.filter((t) => !t.acknowledged).length;
+  const pendingRB = robotTasks.length;
   const totalPending = pendingHH + pendingRB;
 
   const tabs: { key: Category; label: string; icon: React.ElementType }[] = [
     { key: "hangHoa", label: "Hàng hóa", icon: ShoppingBagIcon },
-    { key: "robot",   label: "Robot",     icon: BotIcon },
+    { key: "robot", label: "Robot", icon: BotIcon },
   ];
 
+  const error = filter === "hangHoa" ? restockError : robotError;
+  const onRefresh = filter === "hangHoa" ? onRefreshRestock : onRefreshRobots;
+  const refreshing = filter === "hangHoa" ? restockRefreshing : robotRefreshing;
+  const ack = (id: number) => {
+    if (filter === "hangHoa") ackRestock(id);
+    // Robot tasks are derived live — acknowledgment doesn't persist yet.
+  };
+
+  const isInitialLoading =
+    filter === "hangHoa" ? restockTasks.length === 0 && !!restockError : robots === null;
+
   return (
-    <View style={[styles.page, { backgroundColor: isDark ? palette.gray[950] : "#f3f4f6"}]}>
-      {/* ── Header ──────────────────────────────────────────── */}
+    <View style={[styles.page, { backgroundColor: isDark ? palette.gray[950] : "#f3f4f6" }]}>
       <View
         style={[
           styles.pageHeader,
@@ -253,7 +329,6 @@ export default function StaffTasksPage() {
           )}
         </View>
 
-        {/* Tab switcher */}
         <View style={[styles.tabSwitcher, { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] }]}>
           {tabs.map((tab) => {
             const TabIcon = tab.icon;
@@ -265,9 +340,7 @@ export default function StaffTasksPage() {
                 key={tab.key}
                 style={[
                   styles.tabBtn,
-                  {
-                    backgroundColor: active ? palette.violet[600] : "transparent",
-                  },
+                  { backgroundColor: active ? palette.violet[600] : "transparent" },
                 ]}
                 onPress={() => setFilter(tab.key)}
                 activeOpacity={0.7}
@@ -297,22 +370,50 @@ export default function StaffTasksPage() {
         </View>
       </View>
 
-      {/* ── Task List ──────────────────────────────────────── */}
       <ScrollView
         style={styles.taskList}
         contentContainerStyle={styles.taskListContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={isDark ? palette.gray[400] : palette.gray[500]}
+          />
+        }
       >
-        {visible.length === 0 ? (
+        {error ? (
+          <View
+            style={[
+              styles.banner,
+              {
+                backgroundColor: isDark ? "rgba(239,68,68,0.10)" : palette.red[50],
+                borderColor: palette.red[500],
+              },
+            ]}
+          >
+            <Text style={{ color: palette.red[500], fontSize: 13, fontWeight: "700" }}>
+              {message(new Error(error))}
+            </Text>
+          </View>
+        ) : null}
+
+        {isInitialLoading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={palette.violet[600]} />
+          </View>
+        ) : visible.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>{filter === "hangHoa" ? "📦" : "🤖"}</Text>
             <Text style={[styles.emptyText, { color: isDark ? palette.gray[500] : palette.gray[400] }]}>
-              Không có cảnh báo nào
+              {filter === "hangHoa"
+                ? "Không có cảnh báo tồn kho."
+                : "Tất cả robot đang hoạt động bình thường."}
             </Text>
           </View>
         ) : (
           visible.map((task) => (
-            <TaskCard key={task.id} task={task} onAcknowledge={acknowledge} />
+            <TaskCard key={task.id} task={task} onAcknowledge={ack} />
           ))
         )}
       </ScrollView>
@@ -322,9 +423,7 @@ export default function StaffTasksPage() {
 
 /* ─── Styles ─────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-  },
+  page: { flex: 1 },
   pageHeader: {
     paddingTop: 16,
     paddingBottom: 12,
@@ -337,14 +436,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  pageTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  pageSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
-  },
+  pageTitle: { fontSize: 20, fontWeight: "800" },
+  pageSubtitle: { fontSize: 13, marginTop: 2 },
   badgeCount: {
     width: 36,
     height: 36,
@@ -358,16 +451,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  badgeCountText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  tabSwitcher: {
-    flexDirection: "row",
-    padding: 4,
-    borderRadius: 14,
-  },
+  badgeCountText: { color: "#ffffff", fontSize: 14, fontWeight: "800" },
+  tabSwitcher: { flexDirection: "row", padding: 4, borderRadius: 14 },
   tabBtn: {
     flex: 1,
     flexDirection: "row",
@@ -377,10 +462,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
-  tabBtnText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
+  tabBtnText: { fontSize: 14, fontWeight: "700" },
   tabBadge: {
     minWidth: 18,
     height: 18,
@@ -389,40 +471,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
   },
-  tabBadgeText: {
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  taskList: {
-    flex: 1,
-  },
-  taskListContent: {
-    padding: 16,
-    gap: 10,
-    paddingBottom: 32,
-  },
+  tabBadgeText: { fontSize: 10, fontWeight: "800" },
+  taskList: { flex: 1 },
+  taskListContent: { padding: 16, gap: 10, paddingBottom: 32 },
   taskCard: {
     borderRadius: DEVICE.borderRadius.card,
     borderWidth: 1,
     overflow: "hidden",
   },
-  priorityBar: {
-    height: 3,
-  },
-  taskCardBody: {
-    padding: 14,
-    gap: 8,
-  },
+  priorityBar: { height: 3 },
+  taskCardBody: { padding: 14, gap: 8 },
   taskTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
   },
-  taskIconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+  taskIconRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   taskIcon: {
     width: 36,
     height: 36,
@@ -430,60 +494,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  taskBadgeRow: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  taskBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  taskBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  taskTimeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 3,
-  },
-  taskTimeText: {
-    fontSize: 10,
-  },
-  taskTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  taskDetail: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  taskLocationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  taskLocationText: {
-    fontSize: 12,
-  },
-  taskActions: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 4,
-  },
-  taskActionBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  taskActionBtnText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "700",
-  },
+  taskBadgeRow: { flexDirection: "row", gap: 4 },
+  taskBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  taskBadgeText: { fontSize: 10, fontWeight: "700" },
+  taskTimeRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 },
+  taskTimeText: { fontSize: 10 },
+  taskTitle: { fontSize: 15, fontWeight: "800" },
+  taskDetail: { fontSize: 13, lineHeight: 20 },
+  taskLocationRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  taskLocationText: { fontSize: 12 },
+  taskActions: { flexDirection: "row", gap: 8, marginTop: 4 },
+  taskActionBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
+  taskActionBtnText: { color: "#ffffff", fontSize: 14, fontWeight: "700" },
   taskAckBtn: {
     width: 40,
     height: 40,
@@ -491,17 +513,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 80,
-    gap: 12,
-  },
-  emptyEmoji: {
-    fontSize: 48,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
+  emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 12 },
+  emptyEmoji: { fontSize: 48 },
+  emptyText: { fontSize: 14, fontWeight: "500" },
+  banner: { borderRadius: DEVICE.borderRadius.card, borderWidth: 1, padding: 12, marginBottom: 8 },
+  center: { paddingVertical: 48, alignItems: "center", justifyContent: "center" },
 });

@@ -301,6 +301,9 @@ export const DEVICE = {
 // provides a safe light-mode fallback.
 import { useContext } from "react";
 import { ThemeContext } from "@/contexts/ThemeContext";
+import type { RobotStatus } from "@/services/api/types";
+
+export { type RobotStatus } from "@/services/api/types";
 
 export function useAppTheme(): Theme {
   return useContext(ThemeContext).theme;
@@ -316,7 +319,6 @@ export function useThemeToggle(): { toggle: () => void; mode: "light" | "dark" |
 }
 
 /* ─── Status Helpers ─────────────────────────────────────────────────── */
-export type RobotStatus = "active" | "standby" | "error" | "charging";
 export type Priority = "urgent" | "high" | "normal";
 export type FloorId = 1 | 2 | 3;
 

@@ -1,6 +1,19 @@
+/**
+ * Inline SVG icon set for the SmartMarketBot Staff app.
+ *
+ * Hand-rolled (rather than `@expo/vector-icons`) so the bundle doesn't drag
+ * in the full Material/Feather icon font family. Each export is a stateless
+ * component that takes a `size` and an optional `color` override.
+ */
 import React from "react";
-import Svg, { Path, Circle, Rect, Line, Polyline, Polygon, G, Ellipse } from "react-native-svg";
-import { useIsDark } from "@/constants/theme";
+import Svg, {
+  Path,
+  Circle,
+  Rect,
+  Line,
+  Polyline,
+  Polygon,
+} from "react-native-svg";
 import { palette } from "@/constants/theme";
 
 interface IconProps {
@@ -60,42 +73,6 @@ export function WifiIcon({ size = 20, color }: IconProps) {
   );
 }
 
-/* ─── Layers ────────────────────────────────────────────────────────── */
-export function LayersIcon({ size = 20, color }: IconProps) {
-  const c = color ?? palette.gray[500];
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Polygon points="12,2 2,7 12,12 22,7" stroke={c} strokeWidth="2" strokeLinejoin="round" />
-      <Polygon points="2,12 12,17 22,12" stroke={c} strokeWidth="2" strokeLinejoin="round" />
-      <Polygon points="2,17 12,22 22,17" stroke={c} strokeWidth="2" strokeLinejoin="round" />
-    </Svg>
-  );
-}
-
-/* ─── Package / Tồn Kho ──────────────────────────────────────────────── */
-export function PackageIcon({ size = 20, color }: IconProps) {
-  const c = color ?? palette.gray[500];
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Line x1="16.5" y1="9" x2="4.5" y2="9" stroke={c} strokeWidth="2" />
-      <Line x1="16.5" y1="15" x2="4.5" y2="15" stroke={c} strokeWidth="2" />
-      <Path d="M12 2 L12 9 M8 2 L8 9 M16 2 L16 9" stroke={c} strokeWidth="2" />
-      <Path d="M20 9 L20 20 Q20 22 18 22 L6 22 Q4 22 4 20 L4 9" stroke={c} strokeWidth="2" />
-    </Svg>
-  );
-}
-
-/* ─── Tag / Khuyến Mãi ────────────────────────────────────────────────── */
-export function TagIcon({ size = 20, color }: IconProps) {
-  const c = color ?? palette.gray[500];
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M12 2 L4 10 L4 20 L14 20 L20 14 Z" stroke={c} strokeWidth="2" strokeLinejoin="round" />
-      <Circle cx="8" cy="8" r="1.5" fill={c} />
-    </Svg>
-  );
-}
-
 /* ─── AlertTriangle / Cảnh Báo ──────────────────────────────────────── */
 export function AlertIcon({ size = 20, color }: IconProps) {
   const c = color ?? palette.gray[500];
@@ -128,26 +105,6 @@ export function ChevronRightIcon({ size = 20, color }: IconProps) {
   );
 }
 
-/* ─── ChevronDown ────────────────────────────────────────────────────── */
-export function ChevronDownIcon({ size = 20, color }: IconProps) {
-  const c = color ?? palette.gray[500];
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Polyline points="6,9 12,15 18,9" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
-
-/* ─── ChevronUp ─────────────────────────────────────────────────────── */
-export function ChevronUpIcon({ size = 20, color }: IconProps) {
-  const c = color ?? palette.gray[500];
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Polyline points="18,15 12,9 6,15" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
-
 /* ─── Menu / Hamburger ───────────────────────────────────────────────── */
 export function MenuIcon({ size = 20, color }: IconProps) {
   const c = color ?? palette.gray[500];
@@ -167,6 +124,30 @@ export function XIcon({ size = 20, color }: IconProps) {
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Line x1="18" y1="6" x2="6" y2="18" stroke={c} strokeWidth="2" strokeLinecap="round" />
       <Line x1="6" y1="6" x2="18" y2="18" stroke={c} strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/* ─── Log out (arrow out of a box) ──────────────────────────────────── */
+export function LogOutIcon({ size = 20, color }: IconProps) {
+  const c = color ?? palette.gray[500];
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"
+        stroke={c}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M10 17l-5-5 5-5"
+        stroke={c}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path d="M5 12h12" stroke={c} strokeWidth="2" strokeLinecap="round" />
     </Svg>
   );
 }
@@ -221,18 +202,6 @@ export function NavigationIcon({ size = 20, color }: IconProps) {
   );
 }
 
-/* ─── Truck ───────────────────────────────────────────────────────────── */
-export function TruckIcon({ size = 20, color }: IconProps) {
-  const c = color ?? palette.gray[500];
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M1 3 L15 3 L15 13 L22 13 L22 18 L15 18 L15 13" stroke={c} strokeWidth="2" strokeLinejoin="round" />
-      <Circle cx="6" cy="18" r="2" stroke={c} strokeWidth="2" />
-      <Circle cx="18" cy="18" r="2" stroke={c} strokeWidth="2" />
-    </Svg>
-  );
-}
-
 /* ─── CheckCircle ─────────────────────────────────────────────────────── */
 export function CheckCircleIcon({ size = 20, color }: IconProps) {
   const c = color ?? palette.gray[500];
@@ -276,17 +245,6 @@ export function GamepadIcon({ size = 20, color }: IconProps) {
       <Line x1="8" y1="8" x2="8" y2="12" stroke={c} strokeWidth="2" strokeLinecap="round" />
       <Circle cx="16" cy="12" r="1.5" fill={c} />
       <Circle cx="19" cy="10" r="1.5" fill={c} />
-    </Svg>
-  );
-}
-
-/* ─── Settings / Cogs ────────────────────────────────────────────────── */
-export function SettingsIcon({ size = 20, color }: IconProps) {
-  const c = color ?? palette.gray[500];
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="3" stroke={c} strokeWidth="2" />
-      <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke={c} strokeWidth="2" />
     </Svg>
   );
 }

@@ -3,7 +3,7 @@
  * Contains: top header, sidebar overlay, outlet for child pages
  * Adapts from Figma StaffLayout.tsx to React Native
  */
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -26,6 +26,7 @@ import Animated, {
   SlideInLeft,
 } from "react-native-reanimated";
 import { useIsDark, useThemeToggle, palette, DEVICE } from "@/constants/theme";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   MapIcon,
   BotIcon,
@@ -34,6 +35,7 @@ import {
   XIcon,
   SunIcon,
   MoonIcon,
+  LogOutIcon,
 } from "@/components/ui/staff-icons";
 
 /* ─── Tab definitions ───────────────────────────────────────────────── */
@@ -118,10 +120,12 @@ function Sidebar({
   open,
   onClose,
   isDark,
+  onLogout,
 }: {
   open: boolean;
   onClose: () => void;
   isDark: boolean;
+  onLogout: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -160,7 +164,7 @@ function Sidebar({
           <View style={[styles.sidebarBrandIcon, { backgroundColor: palette.violet[600] }]}>
             <BotIcon size={17} color="#ffffff" />
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.sidebarBrandName, { color: isDark ? "#ffffff" : palette.gray[900] }]}>
               Staff App
             </Text>
@@ -171,6 +175,7 @@ function Sidebar({
                   styles.statusDotLabel,
                   { color: isDark ? palette.gray[500] : palette.gray[400] },
                 ]}
+                numberOfLines={1}
               >
                 TRỰC TUYẾN
               </Text>
@@ -198,8 +203,36 @@ function Sidebar({
           ))}
         </ScrollView>
 
-        {/* Divider */}
-        <View style={[styles.divider, { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] }]} />
+        {/* Footer / Logout */}
+        <View style={styles.sidebarFooter}>
+          <Pressable
+              onPress={() => {
+                onClose();
+                onLogout();
+              }}
+            style={({ pressed }) => [
+              styles.logoutBtn,
+              {
+                borderColor: isDark ? palette.gray[800] : palette.gray[200],
+                backgroundColor: pressed
+                  ? isDark
+                    ? palette.gray[800]
+                    : palette.gray[100]
+                  : "transparent",
+              },
+            ]}
+          >
+            <LogOutIcon size={16} color={isDark ? palette.gray[300] : palette.gray[600]} />
+            <Text
+              style={[
+                styles.logoutText,
+                { color: isDark ? palette.gray[300] : palette.gray[700] },
+              ]}
+            >
+              Đăng xuất
+            </Text>
+          </Pressable>
+        </View>
       </Animated.View>
     </>
   );
@@ -215,7 +248,17 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
   const { toggle: toggleDark } = useThemeToggle();
   const router = useRouter();
   const pathname = usePathname();
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+    } finally {
+      // AuthProvider flips status → root layout redirects to /login.
+      router.replace("/login" as any);
+    }
+  }, [logout, router]);
 
   const activeTab = tabs.find((t) => pathname.startsWith(t.path))?.path ?? "";
 
@@ -305,6 +348,7 @@ export default function StaffLayout({ children }: StaffLayoutProps) {
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           isDark={isDark}
+          onLogout={handleLogout}
         />
       </SafeAreaView>
     </View>
@@ -440,5 +484,23 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: "rgba(255,255,255,0.7)",
     marginLeft: "auto",
+  },
+  sidebarFooter: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+  },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  logoutText: {
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
   },
 });

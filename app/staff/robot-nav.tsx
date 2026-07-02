@@ -32,7 +32,7 @@ import Animated, {
   FadeIn,
 } from "react-native-reanimated";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useIsDark, palette, DEVICE, MAP_ROBOTS, ROBOTS, robotStatusConfig } from "@/constants/theme";
+import { useIsDark, palette, DEVICE, robotStatusConfig } from "@/constants/theme";
 import {
   BotIcon,
   BatteryIcon,
@@ -44,6 +44,28 @@ import {
   ClockIcon,
   NavigationIcon,
 } from "@/components/ui/staff-icons";
+import { getRobot, type NormalizedRobot } from "@/services/api/robots";
+import { useApiErrorMessage } from "@/hooks/useApiErrorMessage";
+
+/* ─── Map coordinate system ─────────────────────────────────────────
+ * The pin uses the same (x, y) coordinate space as the robot-detail
+ * screen: real map-units. We project them to % of the 260dp mini-map
+ * canvas. When the BE seeds a real MAP row with width/height, we can
+ * scale these proportionally instead of using the fallback 1000x700.
+ */
+const MAP_FALLBACK_W = 1000;
+const MAP_FALLBACK_H = 700;
+
+/** Project (x, y) map-units to a percentage of the rendered canvas. */
+function projectPct(
+  x: number,
+  y: number,
+): { leftPct: number; topPct: number } {
+  return {
+    leftPct: Math.min(100, Math.max(0, (x / MAP_FALLBACK_W) * 100)),
+    topPct: Math.min(100, Math.max(0, (y / MAP_FALLBACK_H) * 100)),
+  };
+}
 
 /* ─── Aisle config (matches fleet.tsx visual language) ─────────────── */
 const AISLES = [
@@ -92,13 +114,13 @@ function PulseRing({ color }: { color: string }) {
 
 /* ─── Mini store-map with just the target robot pinned ─────────────── */
 function RobotMap({
-  x,
-  y,
+  leftPct,
+  topPct,
   statusColor,
   robotId,
 }: {
-  x: number;
-  y: number;
+  leftPct: number;
+  topPct: number;
   statusColor: string;
   robotId: string;
 }) {
@@ -208,7 +230,7 @@ function RobotMap({
       <View
         style={[
           styles.targetPin,
-          { left: `${x}%`, top: `${y}%` },
+          { left: `${leftPct}%`, top: `${topPct}%` },
         ]}
       >
         <PulseRing color={statusColor} />
@@ -255,43 +277,51 @@ function RobotMap({
 export default function RobotNavPage() {
   const isDark = useIsDark();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { code } = useLocalSearchParams<{ code?: string; id?: string }>();
+  // Tasks page links here as `/staff/robot-nav?id=SMB-01` (legacy)
+  // or `/staff/robot-nav?code=SMB-01` (the live route we use elsewhere).
+  // Accept both so existing deep-links keep working.
+  const robotCode = (code ?? "") as string;
 
-  const mapRobot = MAP_ROBOTS.find((r) => r.id === id);
-  const fullRobot = ROBOTS.find((r) => r.id === id);
-  const cfg = fullRobot ? robotStatusConfig[fullRobot.status] : null;
-
-  // Pinging state — simulates a roundtrip to the backend
+  const [robot, setRobot] = useState<NormalizedRobot | null | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
   const [pinging, setPinging] = useState(false);
   const [pingedAt, setPingedAt] = useState<string>("vừa xong");
   const [resolved, setResolved] = useState(false);
+  const message = useApiErrorMessage();
 
-  const handlePing = useCallback(() => {
-    if (pinging) return;
+  const load = useCallback(async () => {
+    if (!robotCode) return;
     setPinging(true);
-    // Simulated network delay
-    setTimeout(() => {
-      setPinging(false);
+    setError(null);
+    try {
+      const data = await getRobot(robotCode);
+      setRobot(data);
       const now = new Date();
       setPingedAt(
         `${now.getHours().toString().padStart(2, "0")}:${now
           .getMinutes()
           .toString()
-          .padStart(2, "0")}`
+          .padStart(2, "0")}`,
       );
-    }, 1200);
-  }, [pinging]);
+    } catch (e) {
+      setError(message(e));
+      setRobot(null);
+    } finally {
+      setPinging(false);
+    }
+  }, [robotCode, message]);
 
-  // Auto-ping once on mount so the staff sees the latest position immediately
   useEffect(() => {
-    handlePing();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    load();
+  }, [load]);
+
+  const cfg = robot ? robotStatusConfig[robot.status] : null;
 
   const handleResolved = () => {
     Alert.alert(
       "Xác nhận đã xử lý",
-      `Đánh dấu ${id} đã được xử lý xong?`,
+      `Đánh dấu ${robotCode} đã được xử lý xong?`,
       [
         { text: "Huỷ", style: "cancel" },
         {
@@ -299,16 +329,34 @@ export default function RobotNavPage() {
           style: "default",
           onPress: () => {
             setResolved(true);
-            // Pop back to the alert list; tasks.tsx reads the resolved state via router events.
             setTimeout(() => router.back(), 400);
           },
         },
-      ]
+      ],
     );
   };
 
-  /* ── Not-found fallback ─────────────────────────────────────────── */
-  if (!mapRobot || !fullRobot) {
+  /* ── Loading / not-found fallbacks ─────────────────────────────── */
+  if (robot === undefined) {
+    return (
+      <View style={[styles.page, { backgroundColor: isDark ? palette.gray[950] : "#f3f4f6" }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+            <ChevronLeftIcon size={20} color={isDark ? "#fff" : palette.gray[900]} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: isDark ? "#fff" : palette.gray[900] }]}>
+            Đang tải…
+          </Text>
+          <View style={{ width: 36 }} />
+        </View>
+        <View style={styles.notFoundWrap}>
+          <ActivityIndicator color={palette.violet[600]} />
+        </View>
+      </View>
+    );
+  }
+
+  if (!robot) {
     return (
       <View style={[styles.page, { backgroundColor: isDark ? palette.gray[950] : "#f3f4f6" }]}>
         <View style={styles.header}>
@@ -322,8 +370,16 @@ export default function RobotNavPage() {
         </View>
         <View style={styles.notFoundWrap}>
           <Text style={[styles.notFoundText, { color: isDark ? palette.gray[400] : palette.gray[500] }]}>
-            Robot "{id}" không tồn tại
+            {error ?? `Robot "${robotCode}" không tồn tại`}
           </Text>
+          <TouchableOpacity
+            onPress={load}
+            style={[styles.retryBtn, { borderColor: palette.violet[600] }]}
+          >
+            <Text style={{ color: palette.violet[600], fontSize: 13, fontWeight: "700" }}>
+              Thử lại
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -336,16 +392,29 @@ export default function RobotNavPage() {
   const statusLabel = cfg?.label ?? "Không rõ";
   const statusDot = cfg?.dot ?? palette.gray[400];
 
+  // Map-units → percent for the mini-map projection.
+  const { leftPct, topPct } = robot.position
+    ? projectPct(robot.position.x, robot.position.y)
+    : { leftPct: 50, topPct: 50 };
+
+  const alertTitle =
+    robot.status === "error"
+      ? robot.batteryPct < 15
+        ? "Pin yếu — cần sạc ngay"
+        : "Robot báo lỗi"
+      : robot.status === "charging"
+        ? "Robot đang sạc"
+        : !robot.lastSeenAt
+          ? "Robot mất kết nối"
+          : "Cần nhân viên hỗ trợ";
+
   return (
     <View style={[styles.page, { backgroundColor: bg }]}>
       {/* ── Header ─────────────────────────────────────────────── */}
       <View
         style={[
           styles.header,
-          {
-            backgroundColor: cardBg,
-            borderBottomColor: border,
-          },
+          { backgroundColor: cardBg, borderBottomColor: border },
         ]}
       >
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
@@ -354,7 +423,7 @@ export default function RobotNavPage() {
         <View style={styles.headerCenter}>
           <View style={[styles.headerLiveDot, { backgroundColor: statusDot }]} />
           <Text style={[styles.headerTitle, { color: isDark ? "#fff" : palette.gray[900] }]}>
-            {id}
+            {robot.robotCode}
           </Text>
         </View>
         <View style={{ width: 36 }} />
@@ -412,7 +481,7 @@ export default function RobotNavPage() {
             </View>
 
             <Text style={[styles.alertTitle, { color: isDark ? "#fff" : palette.gray[900] }]}>
-              {fullRobot.errors[0] ?? "Cần nhân viên hỗ trợ"}
+              {alertTitle}
             </Text>
             <Text
               style={[
@@ -420,7 +489,7 @@ export default function RobotNavPage() {
                 { color: isDark ? palette.gray[400] : palette.gray[500] },
               ]}
             >
-              Hãy đến vị trí của {id} để xử lý trực tiếp.
+              Hãy đến vị trí của {robot.robotCode} để xử lý trực tiếp.
             </Text>
           </View>
         </Animated.View>
@@ -452,10 +521,10 @@ export default function RobotNavPage() {
           </View>
 
           <RobotMap
-            x={mapRobot.x}
-            y={mapRobot.y}
+            leftPct={leftPct}
+            topPct={topPct}
             statusColor={statusDot}
-            robotId={id as string}
+            robotId={robot.robotCode}
           />
 
           <TouchableOpacity
@@ -463,7 +532,7 @@ export default function RobotNavPage() {
               styles.refreshBtn,
               { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] },
             ]}
-            onPress={handlePing}
+            onPress={load}
             activeOpacity={0.7}
             disabled={pinging}
           >
@@ -506,7 +575,7 @@ export default function RobotNavPage() {
             </View>
             <View>
               <Text style={[styles.statusName, { color: isDark ? "#fff" : palette.gray[900] }]}>
-                {fullRobot.id}
+                {robot.robotCode}
               </Text>
               <View style={styles.statusMetaRow}>
                 <View style={[styles.statusDotSmall, { backgroundColor: statusDot }]} />
@@ -526,13 +595,13 @@ export default function RobotNavPage() {
             <View style={styles.statusMetric}>
               <BatteryIcon size={14} color={isDark ? palette.gray[400] : palette.gray[500]} />
               <Text style={[styles.statusMetricText, { color: isDark ? "#fff" : palette.gray[900] }]}>
-                {fullRobot.battery}%
+                {robot.batteryPct}%
               </Text>
             </View>
             <View style={styles.statusMetric}>
               <WifiIcon size={14} color={isDark ? palette.gray[400] : palette.gray[500]} />
               <Text style={[styles.statusMetricText, { color: isDark ? "#fff" : palette.gray[900] }]}>
-                {fullRobot.signalStrength}%
+                {robot.mode}
               </Text>
             </View>
           </View>
@@ -543,10 +612,7 @@ export default function RobotNavPage() {
       <View
         style={[
           styles.footer,
-          {
-            backgroundColor: cardBg,
-            borderTopColor: border,
-          },
+          { backgroundColor: cardBg, borderTopColor: border },
         ]}
       >
         <TouchableOpacity
@@ -561,14 +627,8 @@ export default function RobotNavPage() {
           activeOpacity={0.85}
           disabled={resolved}
         >
-          {resolved ? (
-            <CheckCircleIcon size={18} color="#ffffff" />
-          ) : (
-            <CheckCircleIcon size={18} color="#ffffff" />
-          )}
-          <Text style={styles.primaryBtnText}>
-            {resolved ? "Đã xử lý" : "Đã xử lý"}
-          </Text>
+          <CheckCircleIcon size={18} color="#ffffff" />
+          <Text style={styles.primaryBtnText}>Đã xử lý</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -613,8 +673,14 @@ const styles = StyleSheet.create({
   },
 
   /* Not-found */
-  notFoundWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  notFoundWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 12 },
   notFoundText: { fontSize: 14 },
+  retryBtn: {
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
 
   /* Alert card */
   alertCard: {
