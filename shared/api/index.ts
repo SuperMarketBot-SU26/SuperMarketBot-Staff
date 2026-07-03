@@ -15,7 +15,7 @@
  * token storage to the rest of the app.
  */
 
-export { apiRequest, ApiError, logoutAndClear, TOKEN_KEYS } from "./client";
+export { ApiError, TOKEN_KEYS, apiRequest, logoutAndClear } from "./client";
 export type { ApiResponse } from "./client";
 
 export * from "./tokens";
@@ -23,10 +23,9 @@ export * from "./tokens";
 export * from "./types";
 
 export {
-  listRobots,
-  listRobotsWithPositions,
-  getRobot,
-  getRobotPose,
+    getRobot,
+    getRobotPose, listRobots,
+    listRobotsWithPositions
 } from "./robots";
 
 export { listRestockTasks, mapRestockPriority } from "./tasks";

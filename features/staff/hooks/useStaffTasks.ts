@@ -6,9 +6,9 @@
  * pull-to-refresh, and the BE doesn't currently emit task changes over a
  * push channel.
  */
-import { useCallback, useEffect, useState } from "react";
 import { listRestockTasks, type StaffTask } from "@/shared/api";
 import { useApiErrorMessage } from "@/shared/hooks";
+import { useCallback, useEffect, useState } from "react";
 
 export interface StaffTaskState {
   tasks: StaffTask[];

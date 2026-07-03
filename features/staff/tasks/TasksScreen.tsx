@@ -9,26 +9,26 @@
  *
  * Both come from real APIs; the screen no longer ships hard-coded tasks.
  */
+import { useRobotList, useStaffTasks } from "@/features/staff/hooks";
+import { useApiErrorMessage } from "@/shared/hooks";
+import { DEVICE, palette, useIsDark } from "@/shared/theme";
 import { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
-import { DEVICE, palette, useIsDark } from "@/shared/theme";
-import { useApiErrorMessage } from "@/shared/hooks";
-import { useRobotList, useStaffTasks } from "@/features/staff/hooks";
 import { TaskCard } from "./components/TaskCard";
 import { TasksEmpty } from "./components/TasksEmpty";
 import { TasksHeader } from "./components/TasksHeader";
 import {
-  type Category,
-  type Task,
-  deriveRobotTask,
-  restockToTask,
+    type Category,
+    type Task,
+    deriveRobotTask,
+    restockToTask,
 } from "./lib/deriveRobotAlerts";
 
 export default function TasksScreen() {

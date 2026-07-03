@@ -2,27 +2,31 @@
  * TaskCard — one row in the Cảnh Báo task list.
  *
  * Renders the priority bar + icon + title + detail + location + actions.
- * For "robot" tasks, the primary action deep-links to /staff/robot-detail;
- * for "hangHoa" tasks it routes to /staff/robots.
+ *
+ * Categories:
+ *   - "robot"    → primary "Đến robot" opens /staff/robot-detail;
+ *                 chevron pill on the right acknowledges locally.
+ *   - "hangHoa"  → single "Xử lý" button opens /staff/restock-location,
+ *                 where the staff member confirms "Đã xử lý" on the spot.
  */
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
-import { useRouter } from "expo-router";
 import {
-  DEVICE,
-  palette,
-  priorityConfig,
-  useIsDark,
+    DEVICE,
+    palette,
+    priorityConfig,
+    useIsDark,
 } from "@/shared/theme";
 import {
-  AlertIcon,
-  BotIcon,
-  CheckCircleIcon,
-  ChevronRightIcon,
-  ClockIcon,
-  MapPinIcon,
-  ShoppingBagIcon,
+    AlertIcon,
+    BotIcon,
+    CheckCircleIcon,
+    ChevronRightIcon,
+    ClockIcon,
+    MapPinIcon,
+    ShoppingBagIcon,
 } from "@/shared/ui";
+import { useRouter } from "expo-router";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { type Task } from "../lib/deriveRobotAlerts";
 
 const ISSUE_ICONS: Record<string, React.ElementType> = {
@@ -42,6 +46,25 @@ interface TaskCardProps {
   onAcknowledge: (id: number) => void;
 }
 
+const enc = (v: string | number) => encodeURIComponent(String(v));
+
+/** Build the deep-link URL + params for the restock-location screen. */
+function buildRestockHref(task: Task): string {
+  if (task.category !== "hangHoa") return "";
+  const params = new URLSearchParams({
+    id: enc(task.id),
+    title: enc(task.title),
+    detail: enc(task.detail),
+    location: enc(task.location),
+    priority: task.priority,
+    slotCode: enc(task.restock.slotCode),
+    shelfLocation: enc(task.restock.shelfLocation),
+    productName: enc(task.restock.productName),
+    emptyPercentage: enc(task.restock.emptyPercentage),
+  });
+  return `/staff/restock-location?${params.toString()}`;
+}
+
 export function TaskCard({ task, onAcknowledge }: TaskCardProps) {
   const isDark = useIsDark();
   const router = useRouter();
@@ -49,6 +72,16 @@ export function TaskCard({ task, onAcknowledge }: TaskCardProps) {
   const IssueIcon =
     ISSUE_ICONS[task.issueType] ??
     (task.category === "robot" ? BotIcon : ShoppingBagIcon);
+
+  const handlePrimaryAction = () => {
+    if (task.category === "robot") {
+      router.push(
+        `/staff/robot-detail?code=${enc(task.robot.robotCode)}` as any,
+      );
+    } else {
+      router.push(buildRestockHref(task) as any);
+    }
+  };
 
   return (
     <Animated.View
@@ -178,38 +211,32 @@ export function TaskCard({ task, onAcknowledge }: TaskCardProps) {
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: cfg.bar }]}
-              onPress={() => {
-                if (task.category === "robot") {
-                  router.push(
-                    `/staff/robot-detail?code=${encodeURIComponent(task.robot.robotCode)}` as any,
-                  );
-                } else {
-                  router.push("/staff/robots" as any);
-                }
-              }}
+              onPress={handlePrimaryAction}
               activeOpacity={0.8}
             >
               <Text style={styles.actionBtnText}>
                 {task.category === "robot" ? "Đến robot" : "Xử lý"}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.ackBtn,
-                {
-                  backgroundColor: isDark
-                    ? palette.gray[800]
-                    : palette.gray[100],
-                },
-              ]}
-              onPress={() => onAcknowledge(task.id)}
-              activeOpacity={0.7}
-            >
-              <ChevronRightIcon
-                size={16}
-                color={isDark ? palette.gray[400] : palette.gray[500]}
-              />
-            </TouchableOpacity>
+            {task.category === "robot" ? (
+              <TouchableOpacity
+                style={[
+                  styles.ackBtn,
+                  {
+                    backgroundColor: isDark
+                      ? palette.gray[800]
+                      : palette.gray[100],
+                  },
+                ]}
+                onPress={() => onAcknowledge(task.id)}
+                activeOpacity={0.7}
+              >
+                <ChevronRightIcon
+                  size={16}
+                  color={isDark ? palette.gray[400] : palette.gray[500]}
+                />
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
       </View>

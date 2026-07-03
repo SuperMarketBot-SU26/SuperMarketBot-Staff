@@ -10,10 +10,10 @@
  */
 import { apiRequest } from "./client";
 import type {
-  RestockPriority,
-  RestockTaskDto,
-  RestockTaskListResponseDto,
-  StaffTask,
+    RestockPriority,
+    RestockTaskDto,
+    RestockTaskListResponseDto,
+    StaffTask,
 } from "./types";
 
 export type { RestockPriority, RestockTaskDto, StaffTask };
