@@ -26,7 +26,7 @@ import {
   palette,
   useIsDark,
 } from "@/shared/theme";
-import { PlusIcon, RefreshIcon } from "@/shared/ui";
+import { PlusIcon } from "@/shared/ui";
 import {
   BackgroundLayer,
   MapPin,
@@ -226,29 +226,6 @@ export function RobotLocationMap({ robot }: RobotLocationMapProps) {
         </TouchableOpacity>
       </View>
 
-      {/* Recentre on robot */}
-      <TouchableOpacity
-        style={[
-          styles.recentre,
-          { backgroundColor: pillBg, borderColor: cardBorder },
-        ]}
-        onPress={focusOnRobot}
-        activeOpacity={0.8}
-      >
-        <RefreshIcon
-          size={14}
-          color={isDark ? "#ffffff" : palette.gray[900]}
-        />
-        <Text
-          style={[
-            styles.recentreText,
-            { color: isDark ? "#ffffff" : palette.gray[900] },
-          ]}
-        >
-          Re-centre
-        </Text>
-      </TouchableOpacity>
-
       {/* Footer hint — bottom centred */}
       <View pointerEvents="none" style={styles.hintWrap}>
         <View
@@ -319,24 +296,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     lineHeight: 22,
-  },
-
-  /* Recentre */
-  recentre: {
-    position: "absolute",
-    left: 16,
-    bottom: 96,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  recentreText: {
-    fontSize: 12,
-    fontWeight: "700",
   },
 
   /* Footer hint */
