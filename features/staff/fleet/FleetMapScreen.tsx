@@ -35,8 +35,9 @@ import {
   useIsDark,
 } from "@/shared/theme";
 import { ChevronLeftIcon, PlusIcon, RefreshIcon } from "@/shared/ui";
-import { useRobotList } from "@/features/staff/hooks";
+import { useFleetMap, useRobotList } from "@/features/staff/hooks";
 import { BackgroundLayer } from "./components/BackgroundLayer";
+import { MapGraphLayer } from "./components/MapGraphLayer";
 import { MapPin } from "./components/MapPin";
 import { RobotRow } from "./components/RobotRow";
 import { ZoomIndicator } from "./components/ZoomIndicator";
@@ -51,6 +52,7 @@ export default function FleetMapScreen() {
   const containerW = useRef(0);
   const containerH = useRef(0);
   const { robots } = useRobotList();
+  const { floorplan } = useFleetMap();
 
   // Shared values drive the viewport transform on the UI thread.
   const tx = useSharedValue(0);
@@ -202,7 +204,11 @@ export default function FleetMapScreen() {
           collapsable={false}
         >
           <Animated.View style={[styles.content, contentStyle]}>
-            <BackgroundLayer />
+            {floorplan ? (
+              <MapGraphLayer floorplan={floorplan} />
+            ) : (
+              <BackgroundLayer />
+            )}
             {(robots ?? []).map((robot) => (
               <MapPin
                 key={robot.robotCode}
@@ -234,7 +240,9 @@ export default function FleetMapScreen() {
               { color: isDark ? "#ffffff" : palette.gray[900] },
             ]}
           >
-            Bản đồ đội robot
+            {floorplan
+              ? `${floorplan.mapName} · ${floorplan.nodes.length} node · ${floorplan.edges.length} cạnh`
+              : "Bản đồ đội robot"}
           </Text>
         </View>
 

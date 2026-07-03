@@ -30,5 +30,7 @@ export {
 
 export { listRestockTasks, mapRestockPriority } from "./tasks";
 
+export { getLatestMap, getMapStats } from "./map";
+
 export * as AuthApi from "./auth";
 export { API_BASE_URL } from "./config";

@@ -4,6 +4,7 @@ export { FleetRobotListItem } from "./components/FleetRobotListItem";
 export { InlineBanner } from "./components/InlineBanner";
 export { MapPlaceholder } from "./components/MapPlaceholder";
 export { BackgroundLayer } from "./components/BackgroundLayer";
+export { MapGraphLayer } from "./components/MapGraphLayer";
 export { MapPin } from "./components/MapPin";
 export { RobotRow } from "./components/RobotRow";
 export { ZoomIndicator } from "./components/ZoomIndicator";

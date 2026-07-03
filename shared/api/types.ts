@@ -148,3 +148,64 @@ export interface StaffTask {
   /** Underlying restock payload — needed by the "Đã xử lý" action. */
   restock: RestockTaskDto;
 }
+
+// ─── Map / Floorplan ───────────────────────────────────────────────────────
+// Mirrors `MapFloorplanDto` from
+//   BE: SuperMarketBot-BE/src/SmartMarketBot.Application/Models/Maps/MapSyncDtos.cs
+// returned by `GET /api/v1/maps/latest?floorId=N`.
+// Only the fields the Staff app renders are typed; add more when needed.
+
+export interface MapNodeDto {
+  nodeId: number | null;
+  nodeName: string;
+  /** Map-unit x — same units as the FE's MAP_WIDTH in `features/staff/fleet/lib/map.ts`. */
+  xCoord: number;
+  /** Map-unit y — same units as the FE's MAP_HEIGHT. */
+  yCoord: number;
+  /** "intersection" | "aisle" | "shelf" | … */
+  nodeType: string;
+  isBlocked: boolean;
+}
+
+export interface MapEdgeDto {
+  edgeId: number | null;
+  fromNodeId: number;
+  toNodeId: number;
+  distance: number;
+  isBidirectional: boolean;
+}
+
+export interface MapSemanticObjectDto {
+  objectId: number | null;
+  /** "shelf" | "zone" | "aisle" | … */
+  objectType: string;
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+  label: string | null;
+  confidence: number | null;
+  detectedAt: string | null;
+  imageUrl: string | null;
+}
+
+export interface MapFloorplanDto {
+  mapId: number;
+  floorId: number;
+  mapName: string;
+  /** ISO 8601. */
+  createdAt: string;
+  /** Absolute or app-relative URL for the floorplan background image. */
+  floorplanImageUrl: string | null;
+  nodes: MapNodeDto[];
+  edges: MapEdgeDto[];
+  semanticObjects: MapSemanticObjectDto[];
+}
+
+export interface MapSyncStatsDto {
+  totalNodes: number;
+  totalEdges: number;
+  totalSemanticObjects: number;
+  lastSyncedAt: string | null;
+  mapId: number | null;
+}
