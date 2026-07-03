@@ -16,6 +16,7 @@ export * from "./fleet";
 export * from "./robots";
 export * from "./tasks";
 export * from "./restock-location";
+export * from "./robot-location";
 export * from "./robot-detail";
 export * from "./robot-nav";
 export * from "./hooks";

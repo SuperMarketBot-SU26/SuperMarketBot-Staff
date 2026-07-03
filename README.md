@@ -10,7 +10,7 @@ Mobile app for supermarket staff to monitor and coordinate the in-store robot fl
 
 - **Đăng nhập (Login)** — Email + password against `POST /api/auth/login`; tokens stored in `expo-secure-store`. Auto-refresh on 401 via `POST /api/auth/refresh`.
 - **Bản Đồ (Fleet)** — Live overview of all robots with battery, mode and status (active / standby / error / charging). Pull-to-refresh.
-- **Cảnh Báo (Tasks & Alerts)** — A prioritized feed (urgent / high / normal). **Hàng hóa** tab is live (`GET /api/staff/tasks`, Out-of-Stock Handler). **Robot** tab is live (`GET /api/robots` → derive alerts from battery / mode / last-seen). Tapping **Xử lý** on a Hàng hóa row opens **Vị trí kệ** (`/staff/restock-location`) which pings the aisle node on a mini-map and exposes a **Đã xử lý** confirm action.
+- **Cảnh Báo (Tasks & Alerts)** — A prioritized feed (urgent / high / normal). **Hàng hóa** tab is live (`GET /api/staff/tasks`, Out-of-Stock Handler). **Robot** tab is live (`GET /api/robots` → derive alerts from battery / mode / last-seen). Tapping **Xử lý** on a Hàng hóa row opens **Vị trí kệ** (`/staff/restock-location`) which pings the aisle node on a mini-map and exposes a **Đã xử lý** confirm action. Tapping **Đến robot** on a Robot row opens **Vị trí robot** (`/staff/robot-location`), a full-bleed pan/zoom map of the target robot.
 - **Robot List** — Live roster from `GET /api/robots` (+ pose) with per-status summary strip.
 - **Robot Detail** — `GET /api/robots/{code}/pose` for live position; battery, mode, last-seen.
 - **Robot Nav** — When staff tap "Xử lý" on a robot alert, this screen pings the robot's live location and pins it on the mini-map so the staff can walk to the robot and tap "Đã xử lý".
@@ -54,6 +54,7 @@ app/                                    # File-based routes (expo-router)
     robot-detail.tsx                    # Re-exports features/staff/robot-detail/RobotDetailScreen
     robot-nav.tsx                       # Re-exports features/staff/robot-nav/RobotNavScreen
     restock-location.tsx                # Re-exports features/staff/restock-location/RestockLocationScreen
+    robot-location.tsx                  # Re-exports features/staff/robot-location/RobotLocationScreen
 
 features/                               # All real screens, hooks, and components
   auth/
@@ -97,6 +98,10 @@ features/                               # All real screens, hooks, and component
       RestockLocationScreen.tsx         # Aisle ping + "Đã xử lý" confirm (hangHoa)
       components/                       # RestockPingMap, RestockInfoCard
       hooks/useRestockTask.ts           # Placeholder for future fetch-by-id
+    robot-location/
+      RobotLocationScreen.tsx           # Full-bleed map for one robot
+      components/RobotLocationMap.tsx   # Pan/zoom viewport with single target pin
+      hooks/useRobotLocation.ts         # Reads robot code from URL params
     hooks/
       useRobotList.ts                   # Shared list-with-poses loader
       useStaffTasks.ts                  # Shared restock-task loader
@@ -268,6 +273,7 @@ Routes are file-based under `app/`. The root stack currently exposes:
 | `/staff/robot-detail`      | `app/staff/robot-detail.tsx`      | Telemetry + live pose (`?code=…`)             |
 | `/staff/robot-nav`         | `app/staff/robot-nav.tsx`         | Live robot location pin (`?code=…`)           |
 | `/staff/restock-location`  | `app/staff/restock-location.tsx`  | Aisle pin for a hangHoa task (`?id=…&slotCode=…`) |
+| `/staff/robot-location`    | `app/staff/robot-location.tsx`    | Full-bleed map for one robot (`?code=…&position=x,y`) |
 
 ---
 

@@ -4,7 +4,8 @@
  * Renders the priority bar + icon + title + detail + location + actions.
  *
  * Categories:
- *   - "robot"    → primary "Đến robot" opens /staff/robot-detail;
+ *   - "robot"    → primary "Đến robot" opens /staff/robot-location
+ *                 (full-bleed map of the robot's position);
  *                 chevron pill on the right acknowledges locally.
  *   - "hangHoa"  → single "Xử lý" button opens /staff/restock-location,
  *                 where the staff member confirms "Đã xử lý" on the spot.
@@ -65,6 +66,23 @@ function buildRestockHref(task: Task): string {
   return `/staff/restock-location?${params.toString()}`;
 }
 
+/** Build the deep-link URL + params for the robot-location screen. */
+function buildRobotLocationHref(task: Task): string {
+  if (task.category !== "robot") return "";
+  const r = task.robot;
+  const params = new URLSearchParams({
+    code: enc(r.robotCode),
+    name: enc(r.robotName),
+    status: r.status,
+    mode: r.mode,
+    batteryPct: enc(r.batteryPct),
+  });
+  if (r.position) {
+    params.set("position", `${r.position.x.toFixed(2)},${r.position.y.toFixed(2)}`);
+  }
+  return `/staff/robot-location?${params.toString()}`;
+}
+
 export function TaskCard({ task, onAcknowledge }: TaskCardProps) {
   const isDark = useIsDark();
   const router = useRouter();
@@ -75,9 +93,7 @@ export function TaskCard({ task, onAcknowledge }: TaskCardProps) {
 
   const handlePrimaryAction = () => {
     if (task.category === "robot") {
-      router.push(
-        `/staff/robot-detail?code=${enc(task.robot.robotCode)}` as any,
-      );
+      router.push(buildRobotLocationHref(task) as any);
     } else {
       router.push(buildRestockHref(task) as any);
     }
