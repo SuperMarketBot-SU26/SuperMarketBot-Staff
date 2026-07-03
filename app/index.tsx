@@ -1,5 +1,5 @@
 /**
- * Root index — redirects to Staff fleet page (Bản Đồ Đội Robot)
+ * Root index — redirects to Staff fleet page (Bản Đồ Đội Robot).
  */
 import { Redirect } from "expo-router";
 

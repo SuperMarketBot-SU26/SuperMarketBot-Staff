@@ -1,5 +1,5 @@
 /**
- * Staff Index — redirects to /staff/fleet (Bản Đồ)
+ * Staff Index — redirects to /staff/fleet (Bản Đồ).
  */
 import { Redirect } from "expo-router";
 
