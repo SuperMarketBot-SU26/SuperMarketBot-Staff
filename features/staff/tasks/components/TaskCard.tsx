@@ -1,7 +1,16 @@
 /**
  * TaskCard — one row in the Cảnh Báo task list.
  *
- * Renders the priority bar + icon + title + detail + location + actions.
+ * Renders the priority bar + icon + title + detail (API-derived) + location + actions.
+ *
+ * Colour rule (2-tier, driven by `task.isError`):
+ *   - red    → error: hangHoa empty slot / High priority,
+ *              OR robot status=error / battery < 20%
+ *   - orange → everything else
+ *
+ * No description text on the row is hardcoded. The priority badge ("KHẨN
+ * CẤP" / "CAO" / "THƯỜNG") and the "issue type" pill are intentionally
+ * omitted — neither comes from the API.
  *
  * Categories:
  *   - "robot"    → primary "Đến robot" opens /staff/robot-location
@@ -17,7 +26,6 @@ import {
     useIsDark,
 } from "@/shared/theme";
 import {
-    AlertIcon,
     BotIcon,
     CheckCircleIcon,
     ChevronRightIcon,
@@ -29,18 +37,6 @@ import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { type Task } from "../lib/deriveRobotAlerts";
-
-const ISSUE_ICONS: Record<string, React.ElementType> = {
-  "Hết kệ": ShoppingBagIcon,
-  "Tồn thấp": ShoppingBagIcon,
-  "Sắp hết": ShoppingBagIcon,
-  "Cần bổ sung": ShoppingBagIcon,
-  "Mất kết nối": AlertIcon,
-  "Pin yếu": AlertIcon,
-  "Lỗi": AlertIcon,
-  "Đang sạc": AlertIcon,
-  "Chờ quá lâu": AlertIcon,
-};
 
 interface TaskCardProps {
   task: Task;
@@ -86,10 +82,9 @@ function buildRobotLocationHref(task: Task): string {
 export function TaskCard({ task, onAcknowledge }: TaskCardProps) {
   const isDark = useIsDark();
   const router = useRouter();
-  const cfg = priorityConfig[task.priority];
-  const IssueIcon =
-    ISSUE_ICONS[task.issueType] ??
-    (task.category === "robot" ? BotIcon : ShoppingBagIcon);
+  // 2-tier accent: cfg is red when isError, orange otherwise.
+  const cfg = priorityConfig[task.isError ? "urgent" : "high"];
+  const IssueIcon = task.category === "robot" ? BotIcon : ShoppingBagIcon;
 
   const handlePrimaryAction = () => {
     if (task.category === "robot") {
@@ -128,61 +123,23 @@ export function TaskCard({ task, onAcknowledge }: TaskCardProps) {
             >
               <IssueIcon size={16} color={cfg.iconText} />
             </View>
-            <View>
-              <View style={styles.badgeRow}>
-                <View style={[styles.badge, { backgroundColor: cfg.badge }]}>
-                  <Text
-                    style={[styles.badgeText, { color: cfg.badgeText }]}
-                  >
-                    {task.priority === "urgent"
-                      ? "KHẨN CẤP"
-                      : task.priority === "high"
-                        ? "CAO"
-                        : "THƯỜNG"}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.badge,
-                    {
-                      backgroundColor: isDark
-                        ? palette.gray[700]
-                        : palette.gray[100],
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.badgeText,
-                      {
-                        color: isDark
-                          ? palette.gray[400]
-                          : palette.gray[500],
-                      },
-                    ]}
-                  >
-                    {task.issueType}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.timeRow}>
-                <ClockIcon
-                  size={10}
-                  color={isDark ? palette.gray[600] : palette.gray[400]}
-                />
-                <Text
-                  style={[
-                    styles.timeText,
-                    {
-                      color: isDark
-                        ? palette.gray[500]
-                        : palette.gray[400],
-                    },
-                  ]}
-                >
-                  {task.time}
-                </Text>
-              </View>
+            <View style={styles.timeRow}>
+              <ClockIcon
+                size={10}
+                color={isDark ? palette.gray[600] : palette.gray[400]}
+              />
+              <Text
+                style={[
+                  styles.timeText,
+                  {
+                    color: isDark
+                      ? palette.gray[500]
+                      : palette.gray[400],
+                  },
+                ]}
+              >
+                {task.time}
+              </Text>
             </View>
           </View>
           {task.acknowledged ? (
@@ -270,10 +227,14 @@ const styles = StyleSheet.create({
   body: { padding: 14, gap: 8 },
   topRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
   },
-  iconRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  iconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   icon: {
     width: 36,
     height: 36,
@@ -281,14 +242,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeRow: { flexDirection: "row", gap: 4 },
-  badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  badgeText: { fontSize: 10, fontWeight: "700" },
   timeRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 3,
   },
   timeText: { fontSize: 10 },
   title: { fontSize: 15, fontWeight: "800" },

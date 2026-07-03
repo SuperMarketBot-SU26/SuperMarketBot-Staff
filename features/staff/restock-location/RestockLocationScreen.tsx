@@ -61,19 +61,19 @@ export default function RestockLocationScreen() {
     title?: string;
     detail?: string;
     location?: string;
-    /** "urgent" | "high" | "normal". URL params are loosely typed; we
-     * fall back to "high" if the value doesn't match one of the three. */
-    priority?: string;
-    slotCode?: string;
-    shelfLocation?: string;
-    productName?: string;
-    emptyPercentage?: string;
+/** "urgent" | "high". URL params are loosely typed; we fall back to
+   * "high" if the value doesn't match one of the two. */
+  priority?: string;
+  slotCode?: string;
+  shelfLocation?: string;
+  productName?: string;
+  emptyPercentage?: string;
   }>();
 
   const [resolved, setResolved] = useState(false);
 
-  const priorityKey: "urgent" | "high" | "normal" =
-    priority === "urgent" || priority === "normal" ? priority : "high";
+  const priorityKey: "urgent" | "high" =
+    priority === "urgent" ? priority : "high";
   const cfg = priorityConfig[priorityKey];
   const pageBg = isDark ? palette.gray[950] : "#f3f4f6";
   const cardBg = isDark ? palette.gray[900] : "#ffffff";

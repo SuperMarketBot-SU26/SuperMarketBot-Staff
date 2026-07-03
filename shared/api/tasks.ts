@@ -3,10 +3,18 @@
  *
  * BE endpoint: GET /api/staff/tasks → RestockTaskListResponseDto
  *
+ * The BE DTO is the single source of truth — see `shared/api/types.ts`.
  * We expose the raw `RestockTaskDto` plus a normalized UI shape
- * (`StaffTask`) that the screen consumes. The normalization lives here,
- * not in the screen, so the same shape is reusable when other task kinds
- * land (e.g. robot alerts — see `features/staff/tasks/lib/deriveRobotAlerts.ts`).
+ * (`StaffTask`) that the screen consumes. Normalization here is limited
+ * to:
+ *   - mapping the BE's 3-tier priority string (High / Medium / Low)
+ *     onto the 2-tier color rule the Cảnh Báo UI uses (urgent / not).
+ *   - carrying the raw DTO through on the `restock` field so the
+ *     per-row screens can read whatever the BE returns without losing
+ *     data.
+ *
+ * No description / detail text is generated on the client. Anything that
+ * shows up in the UI must come from the API.
  */
 import { apiRequest } from "./client";
 import type {
@@ -19,23 +27,24 @@ import type {
 export type { RestockPriority, RestockTaskDto, StaffTask };
 
 /**
- * Normalize a BE priority string onto the three UI priorities the screens
- * already understand (urgent / high / normal). 'High' restock → urgent so
- * it pops visually (the BE enum is more granular than what we need).
+ * A restock task is an "error" (red) when the slot is fully empty
+ * (currentQuantity === 0) OR the BE marked it High priority.
+ * Everything else stays orange.
+ */
+function isRestockError(t: RestockTaskDto): boolean {
+  return t.currentQuantity === 0 || t.priority === "High";
+}
+
+/**
+ * Map the BE's 3-tier priority string onto the 2-tier priority the UI
+ * uses to pick a color: urgent (red, "error") or normal (orange,
+ * "not-error"). The `medium` and `low` rows render the same.
  */
 export function mapRestockPriority(
   p: RestockPriority,
-): "urgent" | "high" | "normal" {
+): "urgent" | "high" {
   if (p === "High") return "urgent";
-  if (p === "Medium") return "high";
-  return "normal";
-}
-
-/** Vietnamese label for the restock issue type. */
-function describeRestockIssue(t: RestockTaskDto): string {
-  if (t.currentQuantity === 0) return "Hết kệ";
-  if (t.emptyPercentage >= 80) return "Sắp hết";
-  return "Tồn thấp";
+  return "high";
 }
 
 export function toStaffTask(t: RestockTaskDto): StaffTask {
@@ -43,11 +52,14 @@ export function toStaffTask(t: RestockTaskDto): StaffTask {
     id: t.scanId,
     category: "hangHoa",
     priority: mapRestockPriority(t.priority),
-    issueType: describeRestockIssue(t),
+    /** True when the slot is empty or the BE marks the row High. Drives
+     * the red-vs-orange accent on the row; the field is computed, not a
+     * human-readable description. */
+    isError: isRestockError(t),
     title: t.productName,
-    detail: t.hasWarehouseStock
-      ? `Kho còn hàng — cần bổ sung ${t.emptyPercentage}% trống.`
-      : `Kệ trống ${t.emptyPercentage}% — kho hiện không còn.`,
+    detail: `${t.emptyPercentage}% trống · còn ${t.currentQuantity} · ${
+      t.hasWarehouseStock ? "có kho" : "hết kho"
+    }`,
     location: t.shelfLocation,
     reportedAt: t.reportedAt,
     acknowledged: false,

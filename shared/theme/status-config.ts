@@ -8,7 +8,7 @@
  */
 import type { RobotStatus } from "@/shared/api/types";
 
-export type Priority = "urgent" | "high" | "normal";
+export type Priority = "urgent" | "high";
 
 export const robotStatusConfig: Record<
   RobotStatus,
@@ -63,13 +63,5 @@ export const priorityConfig: Record<
     badgeText: "#ffffff",
     bar: "#f97316",
     iconText: "#f97316",
-  },
-  normal: {
-    bg: "rgba(59,130,246,0.08)",
-    border: "rgba(59,130,246,0.3)",
-    badge: "rgba(59,130,246,0.15)",
-    badgeText: "#60a5fa",
-    bar: "#3b82f6",
-    iconText: "#60a5fa",
   },
 };

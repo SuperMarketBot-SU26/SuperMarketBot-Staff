@@ -126,13 +126,20 @@ export interface RestockTaskListResponseDto {
  * UI-normalized task shape consumed by the Cảnh Báo screen.
  * The screen merges restock tasks (`StaffTask`) and robot-derived alerts
  * into a single `Task` union (see `features/staff/tasks/lib/deriveRobotAlerts.ts`).
+ *
+ * `priority` is the BE's own priority bucket normalised onto the 2-tier
+ * colour rule the Cảnh Báo uses (urgent = red / not-urgent = orange).
+ * `isError` is the *direct* boolean the row uses to pick its accent, so
+ * the colour logic stays one read away from the underlying data.
  */
 export interface StaffTask {
   id: number;
   category: "hangHoa";
-  priority: "urgent" | "high" | "normal";
-  issueType: string;
+  priority: "urgent" | "high";
+  /** True when this row is in the "error" colour bucket (red). */
+  isError: boolean;
   title: string;
+  /** Composed-from-API-fields subtitle (empty%, has-warehouse-stock). */
   detail: string;
   location: string;
   /** ISO 8601 — rendered with `formatRelativeTime` in the screen. */

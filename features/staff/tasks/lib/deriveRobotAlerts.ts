@@ -2,31 +2,33 @@
  * `deriveRobotAlerts` — turn the live robot list into a Task-shaped union
  * suitable for the Cảnh Báo screen's "Robot" tab.
  *
- * Rules:
- *   - "active" with battery ≥ 20% → not a task (everything's fine)
- *   - "error" or battery < 20% → "urgent" (pin yếu / lỗi)
- *   - "charging" without errors  → "high"
- *   - "standby" with no telemetry → "high" (Mất kết nối)
- *   - "standby" with telemetry   → "high" (Chờ quá lâu)
+ * Rules (all driven by API fields; no fixed Vietnamese strings):
+ *   - "active" with battery ≥ 20%  → filtered out (nothing to alert on)
+ *   - everything else              → a task with `priority` and `isError`
+ *
+ * The "error" bucket (red) is: status === "error" OR batteryPct < 20.
+ * Everything else is the orange "watch" bucket.
  *
  * Anything that returns null is filtered out by the caller.
  */
 import type { NormalizedRobot, StaffTask } from "@/shared/api";
 import { formatRelativeTime } from "@/shared/lib";
 
-export type Priority = "urgent" | "high" | "normal";
+export type Priority = "urgent" | "high";
 export type Category = "hangHoa" | "robot";
 
 /**
  * Robot-derived alert. Carries the underlying robot so the "Đến robot"
- * button can deep-link to /staff/robot-detail.
+ * button can deep-link to /staff/robot-location.
  */
 export interface RobotTask {
   id: number;
   category: "robot";
   priority: Priority;
-  issueType: string;
+  /** True when this row is in the "error" colour bucket (red). */
+  isError: boolean;
   title: string;
+  /** Composed-from-API-fields subtitle (battery / status / mode). */
   detail: string;
   location: string;
   time: string;
@@ -37,37 +39,19 @@ export interface RobotTask {
 export function deriveRobotTask(r: NormalizedRobot): RobotTask | null {
   if (r.status === "active" && r.batteryPct >= 20) return null;
 
-  const priority: Priority =
-    r.status === "error" || r.batteryPct < 20 ? "urgent" : "high";
-
-  const issueType =
-    r.status === "error"
-      ? r.batteryPct < 15
-        ? "Pin yếu"
-        : "Lỗi"
-      : r.status === "charging"
-        ? "Đang sạc"
-        : !r.lastSeenAt
-          ? "Mất kết nối"
-          : "Chờ quá lâu";
+  const isError = r.status === "error" || r.batteryPct < 20;
+  const priority: Priority = isError ? "urgent" : "high";
 
   return {
     id: r.robotId,
     category: "robot",
     priority,
-    issueType,
+    isError,
     title: r.robotCode,
-    detail:
-      r.status === "error"
-        ? `Pin ${r.batteryPct}% — cần kiểm tra.`
-        : r.status === "charging"
-          ? `Robot đang ở trạm sạc — pin ${r.batteryPct}%.`
-          : !r.lastSeenAt
-            ? "Chưa có dữ liệu telemetry trong hệ thống."
-            : "Robot đang chờ nhưng chưa được giao nhiệm vụ.",
+    detail: `${r.batteryPct}% · ${r.status} · ${r.mode}`,
     location: r.position
       ? `(${r.position.x.toFixed(0)}, ${r.position.y.toFixed(0)})`
-      : "Chưa có tọa độ",
+      : "—",
     time: r.lastSeenAt ? formatRelativeTime(r.lastSeenAt) : "—",
     acknowledged: false,
     robot: r,
