@@ -14,7 +14,7 @@ import {
 import { useRouter } from "expo-router";
 import { palette, useIsDark } from "@/shared/theme";
 import { type NormalizedRobot } from "@/shared/api";
-import { useRobotList } from "./hooks";
+import { useRobotList, useFleetMap } from "./hooks";
 import { MapPlaceholder } from "./components/MapPlaceholder";
 import { InlineBanner } from "@/shared/ui";
 import { RobotCard } from "../robots/components/RobotCard";
@@ -24,6 +24,7 @@ export default function FleetScreen() {
   const isDark = useIsDark();
   const router = useRouter();
   const { robots, error, refreshing, reload, onRefresh } = useRobotList();
+  const { floorplan } = useFleetMap();
 
   const initialLoading = robots === null;
   const pageBg = isDark ? palette.gray[950] : "#f3f4f6";
@@ -61,8 +62,10 @@ export default function FleetScreen() {
         </Text>
       </View>
 
-      {/* Map placeholder (links to fullscreen Skia map) */}
+      {/* Map preview (tapping opens the fullscreen map) */}
       <MapPlaceholder
+        floorplan={floorplan}
+        robots={robots ?? []}
         onOpenFullscreen={() => router.push("/staff/fleet-map" as any)}
       />
 

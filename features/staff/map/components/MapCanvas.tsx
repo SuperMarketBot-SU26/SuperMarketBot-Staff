@@ -26,6 +26,7 @@ import Svg, {
   Rect,
   Text as SvgText,
 } from "react-native-svg";
+import type { NumberProp } from "react-native-svg";
 import type { NormalizedRobot } from "@/shared/api";
 import type { MapFloorplanDto } from "@/shared/api/types";
 import { ROBOT_LOGO_SIZE } from "@/features/staff/map/lib/map";
@@ -311,7 +312,7 @@ function RobotMarkerLayer({
   robots: NormalizedRobot[];
   projection: MapProjection;
   highlightedCode: string | null;
-  onRobotPress: (code: string) => void;
+  onRobotPress?: (code: string) => void;
 }) {
   // Robot logo: Metro-resolved asset. Falls back to coloured circle + initials if absent.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -353,7 +354,7 @@ function RobotMarkerLayer({
         <G
           key={robot.robotCode}
           opacity={isDimmed ? 0.18 : 1}
-          onPress={() => onRobotPress(robot.robotCode)}
+          onPress={onRobotPress ? () => onRobotPress(robot.robotCode) : undefined}
           transform={`translate(${x}, ${y}) rotate(${heading})`}
         >
           {/* Selection ring */}
@@ -421,7 +422,16 @@ interface MapCanvasProps {
   robots: NormalizedRobot[];
   projection: MapProjection;
   highlightedCode: string | null;
-  onRobotPress: (code: string) => void;
+  onRobotPress?: (code: string) => void;
+  /**
+   * Optional render-size overrides. Defaults to `projection.widthPx ×
+   * projection.heightPx`. Pass `"100%"` for either to make the canvas
+   * fill its container; pair with `preserveAspectRatio` (default
+   * `"xMidYMid meet"`) for letterboxing.
+   */
+  width?: NumberProp;
+  height?: NumberProp;
+  preserveAspectRatio?: string;
 }
 
 export function MapCanvas({
@@ -430,11 +440,21 @@ export function MapCanvas({
   projection,
   highlightedCode,
   onRobotPress,
+  width,
+  height,
+  preserveAspectRatio = "xMidYMid meet",
 }: MapCanvasProps) {
   const { widthPx, heightPx, pxPerMeter } = projection;
+  const renderW = width ?? widthPx;
+  const renderH = height ?? heightPx;
 
   return (
-    <Svg width={widthPx} height={heightPx} viewBox={`0 0 ${widthPx} ${heightPx}`}>
+    <Svg
+      width={renderW}
+      height={renderH}
+      viewBox={`0 0 ${widthPx} ${heightPx}`}
+      preserveAspectRatio={preserveAspectRatio}
+    >
       {/* Layer 1: Floorplan background (image or grid) */}
       <FloorplanLayer floorplan={floorplan} projection={projection} />
 

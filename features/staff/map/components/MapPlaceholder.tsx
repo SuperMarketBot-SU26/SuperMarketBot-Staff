@@ -1,21 +1,76 @@
 /**
- * MapPlaceholder — the read-only "Bản đồ cửa hàng đang cập nhật" card on
- * the Fleet overview page. Clicking it navigates to the full-screen map.
+ * MapPlaceholder — live read-only map preview card on the Fleet overview.
+ *
+ * Renders the same SVG canvas the fullscreen map uses, but letterboxed to
+ * the card's fixed height with `preserveAspectRatio="xMidYMid meet"` so
+ * robots + floorplan are visible at a glance. Tapping the card navigates
+ * to the fullscreen map (`onOpenFullscreen`).
+ *
+ * When the floorplan is not yet loaded, falls back to the static
+ * "Bản đồ cửa hàng đang cập nhật" empty state so the layout doesn't jump.
  */
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useState, useEffect } from "react";
+import {
+  Image as RNImage,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { DEVICE, palette, useIsDark } from "@/shared/theme";
 import { GamepadIcon } from "@/shared/ui";
+import { type NormalizedRobot, type MapFloorplanDto } from "@/shared/api";
+import { MapCanvas } from "./MapCanvas";
+import { makeProjection } from "../lib/map";
 
 interface MapPlaceholderProps {
+  floorplan: MapFloorplanDto | null;
+  robots: NormalizedRobot[];
   onOpenFullscreen?: () => void;
   height?: number;
 }
 
 export function MapPlaceholder({
+  floorplan,
+  robots,
   onOpenFullscreen,
   height = 260,
 }: MapPlaceholderProps) {
   const isDark = useIsDark();
+
+  /* The canvas needs the floorplan image's natural pixel size to align
+   * robot markers with shelves. Re-resolve it whenever the URL changes. */
+  const [imageSize, setImageSize] = useState<
+    { naturalWidth: number; naturalHeight: number } | null
+  >(null);
+
+  useEffect(() => {
+    const raw = floorplan?.floorplanImageUrl;
+    if (!raw) {
+      setImageSize(null);
+      return;
+    }
+    let cancelled = false;
+    const resolved = /^https?:\/\//i.test(raw)
+      ? raw
+      : raw.startsWith("/")
+        ? raw.slice(1)
+        : raw;
+    RNImage.getSize(
+      resolved,
+      (w, h) => {
+        if (!cancelled) setImageSize({ naturalWidth: w, naturalHeight: h });
+      },
+      () => {
+        if (!cancelled) setImageSize(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [floorplan?.floorplanImageUrl]);
+
+  const projection = makeProjection(floorplan, imageSize);
 
   return (
     <Pressable
@@ -29,103 +84,80 @@ export function MapPlaceholder({
         },
       ]}
     >
-      {/* Light grid backdrop */}
-      <View style={StyleSheet.absoluteFill}>
-        {[1, 2, 3, 4].map((i) => (
+      {floorplan ? (
+        <MapCanvas
+          floorplan={floorplan}
+          robots={robots}
+          projection={projection}
+          highlightedCode={null}
+          width="100%"
+          height="100%"
+        />
+      ) : (
+        <View style={styles.empty}>
           <View
-            key={`v-${i}`}
             style={[
-              styles.gridLine,
+              styles.emptyIcon,
               {
-                left: `${i * 20}%`,
-                top: 0,
-                bottom: 0,
-                width: 1,
                 backgroundColor: isDark
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(0,0,0,0.06)",
+                  ? "rgba(124,58,237,0.18)"
+                  : palette.violet[100],
+                borderColor: isDark
+                  ? "rgba(124,58,237,0.4)"
+                  : palette.violet[300],
               },
             ]}
-          />
-        ))}
-        {[1, 2, 3, 4].map((i) => (
-          <View
-            key={`h-${i}`}
+          >
+            <GamepadIcon
+              size={22}
+              color={isDark ? palette.violet[300] : palette.violet[600]}
+            />
+          </View>
+          <Text
             style={[
-              styles.gridLine,
-              {
-                top: `${i * 20}%`,
-                left: 0,
-                right: 0,
-                height: 1,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(0,0,0,0.06)",
-              },
+              styles.emptyTitle,
+              { color: isDark ? "#fff" : palette.gray[900] },
             ]}
-          />
-        ))}
-      </View>
+          >
+            Bản đồ cửa hàng đang cập nhật
+          </Text>
+          <Text
+            style={[
+              styles.emptyHint,
+              { color: isDark ? palette.gray[400] : palette.gray[500] },
+            ]}
+          >
+            Robot sẽ xuất hiện trên bản đồ khi cửa hàng tải lên sơ đồ tầng.
+            Nhấn để xem bản đồ đầy đủ.
+          </Text>
 
-      {/* Centered empty-state */}
-      <View style={styles.empty}>
-        <View
-          style={[
-            styles.emptyIcon,
-            {
-              backgroundColor: isDark
-                ? "rgba(124,58,237,0.18)"
-                : palette.violet[100],
-              borderColor: isDark
-                ? "rgba(124,58,237,0.4)"
-                : palette.violet[300],
-            },
-          ]}
-        >
-          <GamepadIcon
-            size={22}
-            color={isDark ? palette.violet[300] : palette.violet[600]}
-          />
-        </View>
-        <Text style={[styles.emptyTitle, { color: isDark ? "#fff" : palette.gray[900] }]}>
-          Bản đồ cửa hàng đang cập nhật
-        </Text>
-        <Text
-          style={[
-            styles.emptyHint,
-            { color: isDark ? palette.gray[400] : palette.gray[500] },
-          ]}
-        >
-          Robot sẽ xuất hiện trên bản đồ khi cửa hàng tải lên sơ đồ tầng.
-          Nhấn để xem bản đồ đầy đủ.
-        </Text>
-
-        <View style={styles.chips}>
-          {STATUS_CHIPS.map((chip) => (
-            <View
-              key={chip.label}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.05)"
-                    : palette.gray[200],
-                },
-              ]}
-            >
-              <View style={[styles.chipDot, { backgroundColor: chip.color }]} />
-              <Text
+          <View style={styles.chips}>
+            {STATUS_CHIPS.map((chip) => (
+              <View
+                key={chip.label}
                 style={[
-                  styles.chipText,
-                  { color: isDark ? palette.gray[300] : palette.gray[700] },
+                  styles.chip,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.05)"
+                      : palette.gray[200],
+                  },
                 ]}
               >
-                {chip.label}
-              </Text>
-            </View>
-          ))}
+                <View style={[styles.chipDot, { backgroundColor: chip.color }]} />
+                <Text
+                  style={[
+                    styles.chipText,
+                    { color: isDark ? palette.gray[300] : palette.gray[700] },
+                  ]}
+                >
+                  {chip.label}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
     </Pressable>
   );
 }
