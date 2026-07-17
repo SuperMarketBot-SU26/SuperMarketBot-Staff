@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image as RNImage,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -119,6 +120,41 @@ function RobotRow({
         {robot.batteryPct}%
       </Text>
     </TouchableOpacity>
+  );
+}
+
+/* ─── Status legend (collapsible card, top-left) ────────────────── */
+
+function StatusLegendCard({ isDark }: { isDark: boolean }) {
+  const pillBg = isDark ? "rgba(20,20,30,0.85)" : "rgba(255,255,255,0.92)";
+  const cardBorder = isDark ? palette.gray[800] : palette.gray[200];
+  const textPrimary = isDark ? "#ffffff" : palette.gray[900];
+  const textSecondary = isDark ? palette.gray[300] : palette.gray[700];
+  // Faint green — easier to read than pure white on the translucent card.
+  const titleColor = isDark ? "#86efac" : "#15803d";
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <View style={styles.legendWrap} pointerEvents="box-none">
+      <Pressable
+        onPress={() => setExpanded((v) => !v)}
+        style={[styles.legendCard, { backgroundColor: pillBg, borderColor: cardBorder }]}
+      >
+        <Text style={[styles.legendTitle, { color: titleColor }]}>
+          Trạng thái Robot
+        </Text>
+        {expanded
+          ? STATUS_LEGEND.map((s) => (
+              <View key={s.label} style={styles.legendRow}>
+                <View style={[styles.legendDot, { backgroundColor: s.hex }]} />
+                <Text style={[styles.legendLabel, { color: textSecondary }]}>
+                  {s.label}
+                </Text>
+              </View>
+            ))
+          : null}
+      </Pressable>
+    </View>
   );
 }
 
@@ -359,12 +395,10 @@ export default function MapScreen() {
   );
 
   /* ── Theme colours ─────────────────────────────────────────────── */
-  /* ── Zoom controls ────────────────────────────────────────────── */
   const pageBg = isDark ? palette.gray[950] : "#e5e7eb";
   const pillBg = isDark ? "rgba(20,20,30,0.85)" : "rgba(255,255,255,0.92)";
   const cardBorder = isDark ? palette.gray[800] : palette.gray[200];
   const textPrimary = isDark ? "#ffffff" : palette.gray[900];
-  const textSecondary = isDark ? palette.gray[300] : palette.gray[700];
 
   const robotList = robots ?? [];
   const mapError_ = mapError ?? robotsError;
@@ -403,13 +437,8 @@ export default function MapScreen() {
         </View>
       ) : null}
 
-      {/* ── Live indicator ──────────────────────────────────────── */}
-      <View style={styles.livePillWrap} pointerEvents="none">
-        <View style={[styles.livePill, { backgroundColor: pillBg, borderColor: cardBorder }]}>
-          <View style={styles.liveDot} />
-          <Text style={[styles.liveText, { color: textPrimary }]}>Đang theo dõi trực tiếp</Text>
-        </View>
-      </View>
+      {/* ── Status legend (collapsible card, top-left) ───────────── */}
+      <StatusLegendCard isDark={isDark} />
 
       {/* ── Top bar ──────────────────────────────────────────────── */}
       <View style={styles.topBar} pointerEvents="box-none">
@@ -462,19 +491,6 @@ export default function MapScreen() {
         <ZoomIndicator scale={scale} />
       </View>
 
-      {/* ── Status legend (bottom-left) ──────────────────────────── */}
-      <View style={styles.legendWrap} pointerEvents="none">
-        <View style={[styles.legendCard, { backgroundColor: pillBg, borderColor: cardBorder }]}>
-          <Text style={[styles.legendTitle, { color: textPrimary }]}>Trạng thái Robot</Text>
-          {STATUS_LEGEND.map((s) => (
-            <View key={s.label} style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: s.hex }]} />
-              <Text style={[styles.legendLabel, { color: textSecondary }]}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
       {/* ── Robot list bottom sheet ─────────────────────────────── */}
       <RobotListSheet
         robots={robotList}
@@ -501,10 +517,25 @@ const styles = StyleSheet.create({
     top: 0,
   },
 
-  /* Live pill */
-  livePillWrap: { position: "absolute", top: 70, left: 16, zIndex: 20 },
+  /* Status legend (top-left, where live pill used to sit) */
+  legendWrap: { position: "absolute", top: 70, left: 16, zIndex: 20 },
+  legendCard: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  legendTitle: { fontSize: 11, fontWeight: "800" },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendLabel: { fontSize: 11, fontWeight: "600" },
 
-  /* Stale-map banner */
+  /* Stale-map banner — sits below the top bar and the legend card */
   staleBannerWrap: { position: "absolute", top: 102, left: 16, right: 16, zIndex: 30 },
   staleBanner: {
     paddingHorizontal: 12,
@@ -520,29 +551,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   staleBannerText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
-  livePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: palette.emerald[500],
-  },
-  liveText: { fontSize: 12, fontWeight: "700" },
 
-  /* Top bar */
   topBar: {
     position: "absolute",
     top: 16,
@@ -606,24 +615,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   zoomPillText: { color: "#ffffff", fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
-
-  /* Legend */
-  legendWrap: { position: "absolute", left: 16, bottom: 230, zIndex: 15 },
-  legendCard: {
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  legendTitle: { fontSize: 11, fontWeight: "800", marginBottom: 4 },
-  legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLabel: { fontSize: 11, fontWeight: "600" },
 
   /* Bottom sheet */
   sheet: {
