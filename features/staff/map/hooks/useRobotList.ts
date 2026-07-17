@@ -1,21 +1,13 @@
 /**
  * `useRobotList` — fetches the fleet roster (with per-robot positions) and
- * exposes the loading / error / refresh state that the list screens share.
- *
- * Unifies the previously-duplicated `useEffect` + `load` + `RefreshControl`
- * wiring across the fleet + robots + robot-nav screens.
- *
- * Accepts a `pollMs` option (default 5000, matching the FE's `useRobotFleet`).
- * When `pollMs > 0`, only the poses are re-fetched on every tick — the static
- * roster (battery / status / mode) is read once on mount.
+ * exposes loading / error / refresh state.
  *
  * Returns:
  *   - `robots`     — `NormalizedRobot[]` once loaded, `null` while loading,
- *                    or `[]` after a failed load (so the list can render the
- *                    empty state instead of a permanent spinner).
+ *                    or `[]` after a failed load.
  *   - `error`      — user-facing Vietnamese message, or `null`.
  *   - `refreshing` — true while a user-initiated pull-to-refresh is in flight.
- *   - `reload`     — manual trigger (e.g. "Thử lại" button).
+ *   - `reload`     — manual trigger.
  *   - `onRefresh`  — for `<RefreshControl onRefresh={...} />`.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -45,8 +37,6 @@ export function useRobotList(
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const message = useApiErrorMessage();
-  // Keep the latest roster in a ref so the poll callback can merge fresh
-  // poses without re-creating the interval on every state change.
   const robotsRef = useRef<NormalizedRobot[] | null>(null);
   robotsRef.current = robots;
 
@@ -88,9 +78,7 @@ export function useRobotList(
     };
   }, [message]);
 
-  // Live pose polling — mirrors the FE's `useRobotFleet({ pollMs: 5000 })`.
-  // Re-fetches only the poses; the roster itself is static after the first
-  // mount so battery / mode / status badges don't flicker.
+  // Live pose polling — re-fetches only the poses.
   useEffect(() => {
     if (pollMs <= 0) return undefined;
     const id = setInterval(async () => {

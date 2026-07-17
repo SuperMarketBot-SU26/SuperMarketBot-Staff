@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { palette, useIsDark } from "@/shared/theme";
 import { useRobotList } from "@/features/staff/hooks";
-import { InlineBanner } from "@/features/staff/fleet";
+import { InlineBanner } from "@/shared/ui";
 import { RobotCard } from "./components/RobotCard";
 import { SummaryStrip } from "./components/SummaryStrip";
 

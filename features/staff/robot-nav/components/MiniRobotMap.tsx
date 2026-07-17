@@ -9,7 +9,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { DEVICE, palette, useIsDark } from "@/shared/theme";
 import { MapPinIcon } from "@/shared/ui";
-import { projectPct } from "@/features/staff/fleet/lib/map";
+import { projectPct } from "@/features/staff/map/legacy";
 import { PulseRing } from "./PulseRing";
 
 const AISLES = [

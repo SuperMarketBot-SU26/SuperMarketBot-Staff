@@ -197,6 +197,11 @@ export interface MapFloorplanDto {
   createdAt: string;
   /** Absolute or app-relative URL for the floorplan background image. */
   floorplanImageUrl: string | null;
+  /** Floor width in meters (BE-supplied; used as a fallback before the image's
+   * natural size is loaded). Matches FE's `widthMeters` in `FleetMap.jsx`. */
+  widthMeters: number;
+  /** Floor height in meters (BE-supplied; used as a fallback). */
+  heightMeters: number;
   nodes: MapNodeDto[];
   edges: MapEdgeDto[];
   semanticObjects: MapSemanticObjectDto[];

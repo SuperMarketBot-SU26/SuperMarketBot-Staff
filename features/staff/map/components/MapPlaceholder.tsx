@@ -1,10 +1,6 @@
 /**
  * MapPlaceholder — the read-only "Bản đồ cửa hàng đang cập nhật" card on
- * the Fleet overview page.
- *
- * Lives in its own component because the FleetMap screen also reuses
- * parts of this visual language (grid backdrop, status chips), and we
- * want one place to change the look.
+ * the Fleet overview page. Clicking it navigates to the full-screen map.
  */
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { DEVICE, palette, useIsDark } from "@/shared/theme";
@@ -12,7 +8,6 @@ import { GamepadIcon } from "@/shared/ui";
 
 interface MapPlaceholderProps {
   onOpenFullscreen?: () => void;
-  /** Optional override of the rendered height. */
   height?: number;
 }
 
@@ -34,7 +29,7 @@ export function MapPlaceholder({
         },
       ]}
     >
-      {/* Light grid backdrop so the area doesn't read as a broken empty box */}
+      {/* Light grid backdrop */}
       <View style={StyleSheet.absoluteFill}>
         {[1, 2, 3, 4].map((i) => (
           <View
@@ -102,7 +97,7 @@ export function MapPlaceholder({
           ]}
         >
           Robot sẽ xuất hiện trên bản đồ khi cửa hàng tải lên sơ đồ tầng.
-          Hiện tại bạn có thể xem danh sách robot bên dưới.
+          Nhấn để xem bản đồ đầy đủ.
         </Text>
 
         <View style={styles.chips}>

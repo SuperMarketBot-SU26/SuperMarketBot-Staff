@@ -11,7 +11,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { DEVICE, palette, useIsDark } from "@/shared/theme";
 import { MapPinIcon } from "@/shared/ui";
-import { MAP_HEIGHT, MAP_WIDTH, projectPct } from "@/features/staff/fleet/lib/map";
+import { MAP_HEIGHT, MAP_WIDTH, projectPct } from "@/features/staff/map/legacy";
 
 /**
  * Map-units are an abstract coordinate space (see `lib/map.ts`).

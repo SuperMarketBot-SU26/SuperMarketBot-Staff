@@ -1,6 +1,6 @@
 /**
- * InlineBanner — small banner used by both fleet and robots pages for
- * "couldn't load" and "empty" states.
+ * InlineBanner — small banner for "couldn't load" and "empty" states.
+ * Lives in `shared/ui` because it's genuinely shared across features.
  */
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { DEVICE, palette, useIsDark } from "@/shared/theme";

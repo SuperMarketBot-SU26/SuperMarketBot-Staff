@@ -1,11 +1,7 @@
 /**
- * Staff Fleet Page — Bản Đồ Đội Robot (top-level overview).
+ * FleetScreen — Bản Đồ Đội Robot overview page.
  *
- * Map section is an empty-state placeholder for now: the BE has no
- * seeded store-map data yet (no SVG / no `MAP` rows), so we render a
- * "Bản đồ sẽ sớm cập nhật" card and link the user to the robot list.
- *
- * Robot list section uses live data from `GET /api/robots` (+ pose).
+ * Shows a map placeholder (links to full-screen map) and the live robot list.
  */
 import {
   ActivityIndicator,
@@ -18,10 +14,11 @@ import {
 import { useRouter } from "expo-router";
 import { palette, useIsDark } from "@/shared/theme";
 import { type NormalizedRobot } from "@/shared/api";
-import { useRobotList } from "@/features/staff/hooks";
-import { FleetRobotListItem } from "./components/FleetRobotListItem";
-import { InlineBanner } from "./components/InlineBanner";
+import { useRobotList } from "./hooks";
 import { MapPlaceholder } from "./components/MapPlaceholder";
+import { InlineBanner } from "@/shared/ui";
+import { RobotCard } from "../robots/components/RobotCard";
+import { SummaryStrip } from "../robots/components/SummaryStrip";
 
 export default function FleetScreen() {
   const isDark = useIsDark();
@@ -64,7 +61,7 @@ export default function FleetScreen() {
         </Text>
       </View>
 
-      {/* Map (read-only empty state) */}
+      {/* Map placeholder (links to fullscreen Skia map) */}
       <MapPlaceholder
         onOpenFullscreen={() => router.push("/staff/fleet-map" as any)}
       />
@@ -92,11 +89,14 @@ export default function FleetScreen() {
             <ActivityIndicator color={palette.violet[600]} />
           </View>
         ) : robots && robots.length > 0 ? (
-          <View style={styles.robotList}>
-            {robots.map((robot: NormalizedRobot, i: number) => (
-              <FleetRobotListItem key={robot.robotCode} robot={robot} index={i} />
-            ))}
-          </View>
+          <>
+            <SummaryStrip robots={robots} />
+            <View style={styles.robotList}>
+              {robots.map((robot: NormalizedRobot, i: number) => (
+                <RobotCard key={robot.robotCode} robot={robot} index={i} />
+              ))}
+            </View>
+          </>
         ) : !error ? (
           <InlineBanner
             tone="empty"

@@ -1,2 +1,2 @@
-/** /staff/fleet-map — fullscreen interactive map. */
-export { default } from "@/features/staff/fleet/FleetMapScreen";
+/** /staff/fleet-map — fullscreen interactive store map (Skia canvas). */
+export { default } from "@/features/staff/map/MapScreen";
