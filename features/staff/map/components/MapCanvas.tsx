@@ -10,13 +10,15 @@
  *   4. Navigation nodes (circles)
  *   5. Robot markers (pins with status ring + direction arrow)
  *
- * Replaced react-native-skia with react-native-svg for RN 0.81 / Expo SDK 54
- * compatibility.
+ * Tap-to-zoom was removed: robots can only be focused via tap, which
+ * zooms the camera (handled by the parent MapScreen) and dims the
+ * other robots in the canvas. Robot pin taps are intercepted by
+ * `Pressable` wrappers rather than a Skia gesture tree, so they coexist
+ * with the parent `GestureDetector` (pan + pinch).
  */
 import { useMemo } from "react";
 import Svg, {
   Circle,
-  Defs,
   G,
   Image as SvgImage,
   Line,
@@ -26,6 +28,7 @@ import Svg, {
 } from "react-native-svg";
 import type { NormalizedRobot } from "@/shared/api";
 import type { MapFloorplanDto } from "@/shared/api/types";
+import { ROBOT_LOGO_SIZE } from "@/features/staff/map/lib/map";
 import {
   ROBOT_ARROW_HALF_H,
   ROBOT_ARROW_HALF_W,
@@ -302,12 +305,18 @@ function NavigationLayer({
 function RobotMarkerLayer({
   robots,
   projection,
-  focusedCode,
+  highlightedCode,
+  onRobotPress,
 }: {
   robots: NormalizedRobot[];
   projection: MapProjection;
-  focusedCode: string | null;
+  highlightedCode: string | null;
+  onRobotPress: (code: string) => void;
 }) {
+  // Robot logo: Metro-resolved asset. Falls back to coloured circle + initials if absent.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const logoSrc = require("@/assets/images/logo.png") as number;
+
   const renders = useMemo(() => {
     if (!robots || robots.length === 0) return [];
     return robots
@@ -316,7 +325,8 @@ function RobotMarkerLayer({
         const { x, y } = projectRobot(robot.position, projection);
         const heading = robot.position!.headingDeg ?? 0;
         const hex = statusHexFor(robot);
-        const isFocused = focusedCode === robot.robotCode;
+        const isHighlighted = highlightedCode === robot.robotCode;
+        const isDimmed = highlightedCode !== null && !isHighlighted;
         const R = ROBOT_RING_R;
 
         // Arrow polygon points in robot-local space (0,0 at centre, -Y = forward).
@@ -333,50 +343,62 @@ function RobotMarkerLayer({
           `L ${-aw * 0.4},${-ao + ah} ` +
           `L ${-aw},${-ao + ah} Z`;
 
-        return { robot, x, y, heading, hex, isFocused, R, arrowPath };
+        return { robot, x, y, heading, hex, isHighlighted, isDimmed, R, arrowPath };
       });
-  }, [robots, projection, focusedCode]);
+  }, [robots, projection, highlightedCode]);
 
   return (
     <>
-      {renders.map(({ robot, x, y, heading, hex, isFocused, R, arrowPath }) => (
+      {renders.map(({ robot, x, y, heading, hex, isHighlighted, isDimmed, R, arrowPath }) => (
         <G
           key={robot.robotCode}
-          transform={`rotate(${heading} ${x} ${y})`}
+          opacity={isDimmed ? 0.18 : 1}
+          onPress={() => onRobotPress(robot.robotCode)}
+          transform={`translate(${x}, ${y}) rotate(${heading})`}
         >
           {/* Selection ring */}
           <Circle
-            cx={x}
-            cy={y}
+            cx={0}
+            cy={0}
             r={R}
-            fill={isFocused ? "#22c55e" : "#3b82f6"}
-            opacity={isFocused ? 0.25 : 0.12}
+            fill={isHighlighted ? "#22c55e" : "#3b82f6"}
+            opacity={isHighlighted ? 0.3 : 0.12}
           />
-          {isFocused ? (
-            <Circle cx={x} cy={y} r={R} fill="none" stroke="#22c55e" strokeWidth={2.5} />
+          {isHighlighted ? (
+            <Circle
+              cx={0}
+              cy={0}
+              r={R}
+              fill="none"
+              stroke="#22c55e"
+              strokeWidth={2.5}
+            />
           ) : null}
 
-          {/* Status halo */}
-          <Circle
-            cx={x}
-            cy={y}
-            r={ROBOT_LOGO_HALF + 3}
-            fill={hex}
-            opacity={0.2}
-          />
-
-          {/* Logo body — coloured circle with initial */}
-          <Circle cx={x} cy={y} r={ROBOT_LOGO_HALF} fill={hex} />
-          <SvgText
-            x={x - ROBOT_LOGO_HALF + 2}
-            y={y + ROBOT_LOGO_HALF / 2 + 3}
-            fill="#ffffff"
-            fontSize={10}
-            fontWeight="bold"
-            fontFamily="System"
-          >
-            {robot.robotCode.slice(0, 2).toUpperCase()}
-          </SvgText>
+          {/* Logo image — centred at (0,0), falls back to coloured circle + code initials */}
+          {logoSrc ? (
+            <SvgImage
+              x={-ROBOT_LOGO_HALF}
+              y={-ROBOT_LOGO_HALF}
+              width={ROBOT_LOGO_SIZE}
+              height={ROBOT_LOGO_SIZE}
+              href={logoSrc}
+            />
+          ) : (
+            <>
+              <Circle cx={0} cy={0} r={ROBOT_LOGO_HALF} fill={hex} />
+              <SvgText
+                x={-ROBOT_LOGO_HALF + 1}
+                y={ROBOT_LOGO_HALF / 2 + 3}
+                fill="#ffffff"
+                fontSize={9}
+                fontWeight="bold"
+                fontFamily="System"
+              >
+                {robot.robotCode.slice(0, 2).toUpperCase()}
+              </SvgText>
+            </>
+          )}
 
           {/* Direction arrow */}
           <Path
@@ -385,7 +407,6 @@ function RobotMarkerLayer({
             stroke="rgba(255,255,255,0.7)"
             strokeWidth={0.8}
             strokeLinejoin="round"
-            transform={`translate(${x}, ${y})`}
           />
         </G>
       ))}
@@ -399,14 +420,16 @@ interface MapCanvasProps {
   floorplan: MapFloorplanDto | null;
   robots: NormalizedRobot[];
   projection: MapProjection;
-  focusedCode: string | null;
+  highlightedCode: string | null;
+  onRobotPress: (code: string) => void;
 }
 
 export function MapCanvas({
   floorplan,
   robots,
   projection,
-  focusedCode,
+  highlightedCode,
+  onRobotPress,
 }: MapCanvasProps) {
   const { widthPx, heightPx, pxPerMeter } = projection;
 
@@ -428,11 +451,12 @@ export function MapCanvas({
         pxPerMeter={pxPerMeter}
       />
 
-      {/* Layer 4: Robot markers */}
+      {/* Layer 4: Robot markers — dimmed except the highlighted one */}
       <RobotMarkerLayer
         robots={robots}
         projection={projection}
-        focusedCode={focusedCode}
+        highlightedCode={highlightedCode}
+        onRobotPress={onRobotPress}
       />
     </Svg>
   );

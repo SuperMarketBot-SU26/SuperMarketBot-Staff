@@ -1,15 +1,20 @@
 /**
  * MapScreen — full-screen interactive store map for the Staff app.
  *
- * Uses Skia Canvas for all map rendering (see MapCanvas.tsx).
- * Pan/pinch/zoom handled by Reanimated animated values driving the
- * transform on an Animated.View container that wraps the Skia canvas.
- * GestureDetector wires pan + pinch + double-tap gestures.
+ * Uses react-native-svg for all map rendering (see MapCanvas.tsx).
+ * Pan/pinch handled by Reanimated animated values driving the
+ * transform on an Animated.View container that wraps the SVG canvas.
+ * GestureDetector wires pan + pinch only (double-tap disabled).
+ * One-tap on a robot pin in the canvas is handled inside MapCanvas.
  *
  * Layers (back → front):
- *   1. Skia Canvas: floorplan + semantic objects + graph + robot pins
+ *   1. SVG Canvas: floorplan + semantic objects + graph + robot pins
  *   2. Animated.View: applies pan/zoom transform on top
  *   3. UI overlays: live pill, top bar, zoom controls, legend, robot list
+ *
+ * Robot focus: tapping a robot (from list row OR canvas pin) zooms the
+ * camera onto the robot, sets `highlightedCode` so the canvas dims the
+ * other robots, and pushes the robot detail modal which reads ?code=.
  */
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -229,7 +234,7 @@ export default function MapScreen() {
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const scale = useSharedValue(1);
-  const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const [highlightedCode, setHighlightedCode] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   /* ── Fit to screen ────────────────────────────────────────────── */
@@ -252,8 +257,11 @@ export default function MapScreen() {
     if (ready) fitToScreen();
   }, [ready, fitToScreen, projection.widthPx, projection.heightPx]);
 
-  /* ── Focus on robot ───────────────────────────────────────────── */
-  const focusOnRobot = useCallback(
+  /* ── Zoom on a specific robot ─────────────────────────────────
+   * Sets highlightedCode (so canvas dims other robots) AND animates
+   * the camera to centre the chosen robot pin.
+   */
+  const zoomOnRobot = useCallback(
     (code: string) => {
       const list = robots ?? [];
       const target = list.find((r) => r.robotCode === code);
@@ -263,16 +271,28 @@ export default function MapScreen() {
       if (!cw || !ch) return;
       const px = target.position.x * projection.pxPerMeter;
       const py = target.position.y * projection.pxPerMeter;
-      const z = scale.value;
-      tx.value = withSpring(cw / 2 - px * z, SPRING);
-      ty.value = withSpring(ch / 2 - py * z, SPRING);
+      const targetZoom = Math.min(Math.max(scale.value, 1.6), MAX_ZOOM);
+      tx.value = withSpring(cw / 2 - px * targetZoom, SPRING);
+      ty.value = withSpring(ch / 2 - py * targetZoom, SPRING);
+      scale.value = withSpring(targetZoom, SPRING);
     },
     [containerH, containerW, projection.pxPerMeter, robots, scale, tx, ty],
   );
 
-  useEffect(() => {
-    if (selectedCode) focusOnRobot(selectedCode);
-  }, [selectedCode, focusOnRobot]);
+  /* ── Robot tap (canvas pin or list row) ──────────────────────── */
+  const handleRobotPress = useCallback(
+    (code: string) => {
+      setHighlightedCode((prev) => {
+        // Toggle off if tapping the same robot again.
+        if (prev === code) return null;
+        return code;
+      });
+      // Zoom on the chosen robot (camera animates either way).
+      zoomOnRobot(code);
+      router.push(`/staff/robot-detail?code=${encodeURIComponent(code)}` as any);
+    },
+    [router, zoomOnRobot],
+  );
 
   /* ── Container layout ─────────────────────────────────────────── */
   const onContainerLayout = useCallback(
@@ -287,7 +307,10 @@ export default function MapScreen() {
     [containerH, containerW, fitToScreen, ready],
   );
 
-  /* ── Gesture handlers ─────────────────────────────────────────── */
+  /* ── Gesture handlers ───────────────────────────────────────────
+   * Pan + Pinch only. One-tap on a robot pin handled via TouchableOpacity
+   * inside the canvas (Touchable on the SVG element).
+   */
   const startTx = useSharedValue(0);
   const startTy = useSharedValue(0);
   const startScale = useSharedValue(1);
@@ -309,19 +332,7 @@ export default function MapScreen() {
       scale.value = ns;
     });
 
-  const doubleTap = Gesture.Tap()
-    .numberOfTaps(2)
-    .onEnd((e) => {
-      const fx = e.x - containerW.value / 2;
-      const fy = e.y - containerH.value / 2;
-      const target = Math.min(scale.value * 2, MAX_ZOOM);
-      const ratio = target / scale.value;
-      tx.value = withSpring(fx - (fx - tx.value) * ratio, SPRING);
-      ty.value = withSpring(fy - (fy - ty.value) * ratio, SPRING);
-      scale.value = withSpring(target, SPRING);
-    });
-
-  const composed = Gesture.Simultaneous(pan, pinch, doubleTap);
+  const composed = Gesture.Simultaneous(pan, pinch);
 
   /* ── Animated transform style ─────────────────────────────────── */
   const contentStyle = useAnimatedStyle(() => ({
@@ -347,16 +358,8 @@ export default function MapScreen() {
     [containerH, containerW, scale, tx, ty],
   );
 
-  /* ── Robot tap ────────────────────────────────────────────────── */
-  const handleRobotPress = useCallback(
-    (code: string) => {
-      setSelectedCode((prev) => (prev === code ? null : code));
-      router.push(`/staff/robot-detail?code=${encodeURIComponent(code)}` as any);
-    },
-    [router],
-  );
-
   /* ── Theme colours ─────────────────────────────────────────────── */
+  /* ── Zoom controls ────────────────────────────────────────────── */
   const pageBg = isDark ? palette.gray[950] : "#e5e7eb";
   const pillBg = isDark ? "rgba(20,20,30,0.85)" : "rgba(255,255,255,0.92)";
   const cardBorder = isDark ? palette.gray[800] : palette.gray[200];
@@ -382,7 +385,8 @@ export default function MapScreen() {
               floorplan={floorplan}
               robots={robotList}
               projection={projection}
-              focusedCode={selectedCode}
+              highlightedCode={highlightedCode}
+              onRobotPress={handleRobotPress}
             />
           </Animated.View>
         </Animated.View>

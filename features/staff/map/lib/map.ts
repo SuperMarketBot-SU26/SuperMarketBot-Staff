@@ -31,6 +31,7 @@ export const MAX_ZOOM = 4;
 /* ─── Robot marker sizing ─────────────────────────────────────────── */
 
 export const ROBOT_LOGO_HALF = 12;
+export const ROBOT_LOGO_SIZE = ROBOT_LOGO_HALF * 2;
 export const ROBOT_ARROW_OFFSET = 22;
 export const ROBOT_ARROW_HALF_W = 5;
 export const ROBOT_ARROW_HALF_H = 7;
