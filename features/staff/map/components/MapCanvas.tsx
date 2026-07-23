@@ -1,483 +1,351 @@
 /**
- * MapCanvas — pure SVG canvas that renders the full store map.
+ * MapCanvas — Hardcoded SVG Store Floorplan & Robot Canvas.
  *
- * All drawing happens on the UI thread via react-native-svg.
- *
- * z-order (back → front):
- *   1. Floorplan background (image or 1m grid placeholder)
- *   2. Semantic object rectangles (shelves / aisles / zones)
- *   3. Navigation edges (graph lines)
- *   4. Navigation nodes (circles)
- *   5. Robot markers (pins with status ring + direction arrow)
- *
- * Tap-to-zoom was removed: robots can only be focused via tap, which
- * zooms the camera (handled by the parent MapScreen) and dims the
- * other robots in the canvas. Robot pin taps are intercepted by
- * `Pressable` wrappers rather than a Skia gesture tree, so they coexist
- * with the parent `GestureDetector` (pan + pinch).
+ * Implements clean 2D sketch layout with exact Zone 3 path from Paint diagram:
+ * - Zone 3 U-notch step path around Shelf 3-left and Shelf 3-bottom
+ * - Numbers (1, 2, 3, 4) centered INSIDE shelf boxes via translate(centerX, centerY)
+ * - Corner dots (•) represent turns/junctions
+ * - Cross-ticks (┿) represent Stocking Nodes
  */
-import { useMemo } from "react";
 import Svg, {
   Circle,
   G,
-  Image as SvgImage,
   Line,
   Path,
   Rect,
   Text as SvgText,
 } from "react-native-svg";
-import type { NumberProp } from "react-native-svg";
-import type { NormalizedRobot } from "@/shared/api";
-import type { MapFloorplanDto } from "@/shared/api/types";
-import { ROBOT_LOGO_SIZE } from "@/features/staff/map/lib/map";
 import {
-  ROBOT_ARROW_HALF_H,
-  ROBOT_ARROW_HALF_W,
-  ROBOT_ARROW_OFFSET,
-  ROBOT_LOGO_HALF,
-  ROBOT_RING_R,
+  CASHIER,
+  DOCK,
+  DOOR,
+  NAV_NODES,
+  PATH_SEGMENTS,
+  ZONES,
+} from "../lib/storeLayout";
+import {
   type MapProjection,
   projectRobot,
   statusHexFor,
 } from "../lib/map";
-
-/* ─── Floorplan background ──────────────────────────────────────── */
-
-function FloorplanLayer({
-  floorplan,
-  projection,
-}: {
-  floorplan: MapFloorplanDto | null;
-  projection: MapProjection;
-}) {
-  const { widthPx, heightPx, widthMeters, heightMeters, pxPerMeter } = projection;
-
-  const verticals = useMemo(() => {
-    const lines: { x: number; major: boolean }[] = [];
-    for (let x = 0; x <= widthMeters; x += 1) {
-      lines.push({ x: x * pxPerMeter, major: x % 5 === 0 });
-    }
-    return lines;
-  }, [widthMeters, pxPerMeter]);
-
-  const horizontals = useMemo(() => {
-    const lines: { y: number; major: boolean }[] = [];
-    for (let y = 0; y <= heightMeters; y += 1) {
-      lines.push({ y: y * pxPerMeter, major: y % 5 === 0 });
-    }
-    return lines;
-  }, [heightMeters, pxPerMeter]);
-
-  const imageUri = useMemo(() => {
-    const raw = floorplan?.floorplanImageUrl ?? "";
-    if (!raw) return null;
-    if (/^https?:\/\//i.test(raw)) return raw;
-    return raw;
-  }, [floorplan?.floorplanImageUrl]);
-
-  if (imageUri) {
-    return (
-      <SvgImage
-        href={{ uri: imageUri }}
-        x={0}
-        y={0}
-        width={widthPx}
-        height={heightPx}
-        preserveAspectRatio="xMidYMid slice"
-      />
-    );
-  }
-
-  return (
-    <>
-      {/* Floor background */}
-      <Rect x={0} y={0} width={widthPx} height={heightPx} fill="#f0f2f5" />
-      {/* Outer wall */}
-      <Rect
-        x={1}
-        y={1}
-        width={widthPx - 2}
-        height={heightPx - 2}
-        fill="none"
-        stroke="#374151"
-        strokeWidth={3}
-      />
-      {/* Vertical grid lines */}
-      {verticals.map((l, i) => (
-        <Line
-          key={`v${i}`}
-          x1={l.x}
-          y1={0}
-          x2={l.x}
-          y2={heightPx}
-          stroke={l.major ? "#9ca3af" : "#e5e7eb"}
-          strokeWidth={l.major ? 1 : 0.5}
-        />
-      ))}
-      {/* Horizontal grid lines */}
-      {horizontals.map((l, i) => (
-        <Line
-          key={`h${i}`}
-          x1={0}
-          y1={l.y}
-          x2={widthPx}
-          y2={l.y}
-          stroke={l.major ? "#9ca3af" : "#e5e7eb"}
-          strokeWidth={l.major ? 1 : 0.5}
-        />
-      ))}
-    </>
-  );
-}
-
-/* ─── Semantic objects ────────────────────────────────────────────── */
-
-function SemanticObjectsLayer({
-  objects,
-  pxPerMeter,
-}: {
-  objects: MapFloorplanDto["semanticObjects"];
-  pxPerMeter: number;
-}) {
-  const rects = useMemo(() => {
-    if (!objects || objects.length === 0) return [];
-    return objects
-      .map((o, i) => {
-        const xMin = (o.xMin ?? 0) * pxPerMeter;
-        const yMin = (o.yMin ?? 0) * pxPerMeter;
-        const w = ((o.xMax ?? 0) - (o.xMin ?? 0)) * pxPerMeter;
-        const h = ((o.yMax ?? 0) - (o.yMin ?? 0)) * pxPerMeter;
-        if (w <= 0 || h <= 0) return null;
-        const type = o.objectType ?? "";
-        const color =
-          type === "shelf"
-            ? { fill: "rgba(147,197,253,0.5)", stroke: "#60a5fa" }
-            : type === "zone"
-              ? { fill: "rgba(167,243,208,0.5)", stroke: "#34d399" }
-              : { fill: "rgba(254,215,170,0.5)", stroke: "#fb923c" };
-        return { o, xMin, yMin, w, h, color, i, label: o.label ?? "" };
-      })
-      .filter(Boolean) as {
-      o: (typeof objects)[number];
-      xMin: number;
-      yMin: number;
-      w: number;
-      h: number;
-      color: { fill: string; stroke: string };
-      i: number;
-      label: string;
-    }[];
-  }, [objects, pxPerMeter]);
-
-  return (
-    <>
-      {rects.map(({ o, xMin, yMin, w, h, color, i, label }) => (
-        <G key={o.objectId ?? i}>
-          {/* Fill */}
-          <Rect x={xMin} y={yMin} width={w} height={h} fill={color.fill} rx={4} ry={4} />
-          {/* Stroke */}
-          <Rect
-            x={xMin}
-            y={yMin}
-            width={w}
-            height={h}
-            fill="none"
-            stroke={color.stroke}
-            strokeWidth={1.5}
-            rx={4}
-            ry={4}
-          />
-          {/* Label */}
-          {label ? (
-            <SvgText
-              x={xMin + 4}
-              y={yMin + h / 2 + 4}
-              fill={color.stroke}
-              fontSize={Math.max(8, Math.min(11, Math.min(w, h) / (label.length || 1) * 1.8))}
-              fontWeight="600"
-              fontFamily="System"
-            >
-              {label}
-            </SvgText>
-          ) : null}
-        </G>
-      ))}
-    </>
-  );
-}
-
-/* ─── Navigation graph ─────────────────────────────────────────────── */
-
-function NavigationLayer({
-  nodes,
-  edges,
-  pxPerMeter,
-}: {
-  nodes: MapFloorplanDto["nodes"];
-  edges: MapFloorplanDto["edges"];
-  pxPerMeter: number;
-}) {
-  const nodeById = useMemo(() => {
-    const m = new Map<number, (typeof nodes)[number]>();
-    nodes?.forEach((n) => {
-      if (n.nodeId != null) m.set(n.nodeId, n);
-    });
-    return m;
-  }, [nodes]);
-
-  const nodeRenders = useMemo(() => {
-    if (!nodes) return [];
-    return nodes.map((n, i) => {
-      const x = n.xCoord * pxPerMeter;
-      const y = n.yCoord * pxPerMeter;
-      const r = n.nodeType === "dock" ? 7 : n.nodeType === "poi" ? 6 : 4.5;
-      const blocked = n.isBlocked;
-      const nodeName = n.nodeName ?? "";
-      return { n, x, y, r, blocked, nodeName, i };
-    });
-  }, [nodes, pxPerMeter]);
-
-  const edgeRenders = useMemo(() => {
-    if (!edges) return [];
-    return edges
-      .map((e, i) => {
-        const a = nodeById.get(e.fromNodeId);
-        const b = nodeById.get(e.toNodeId);
-        if (!a || !b) return null;
-        return {
-          x1: a.xCoord * pxPerMeter,
-          y1: a.yCoord * pxPerMeter,
-          x2: b.xCoord * pxPerMeter,
-          y2: b.yCoord * pxPerMeter,
-          isBidirectional: e.isBidirectional,
-          i,
-        };
-      })
-      .filter(Boolean) as {
-      x1: number;
-      y1: number;
-      x2: number;
-      y2: number;
-      isBidirectional: boolean;
-      i: number;
-    }[];
-  }, [edges, nodeById, pxPerMeter]);
-
-  return (
-    <>
-      {/* Edges */}
-      {edgeRenders.map(({ x1, y1, x2, y2, isBidirectional, i }) => (
-        <Line
-          key={`e${i}`}
-          x1={x1}
-          y1={y1}
-          x2={x2}
-          y2={y2}
-          stroke="#b0b7c3"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-        />
-      ))}
-      {/* Nodes */}
-      {nodeRenders.map(({ n, x, y, r, blocked, nodeName, i }) => (
-        <G key={n.nodeId ?? `n${i}`}>
-          <Circle cx={x} cy={y} r={r + 2} fill={blocked ? "#7f1d1d" : "#1e3a8a"} />
-          <Circle cx={x} cy={y} r={r} fill={blocked ? "#ef4444" : "#ffffff"} />
-          {nodeName ? (
-            <SvgText
-              x={x - 20}
-              y={y + r + 14}
-              fill="#6b7280"
-              fontSize={9}
-              fontWeight="500"
-              fontFamily="System"
-            >
-              {nodeName}
-            </SvgText>
-          ) : null}
-        </G>
-      ))}
-    </>
-  );
-}
-
-/* ─── Robot markers ───────────────────────────────────────────────── */
-
-function RobotMarkerLayer({
-  robots,
-  projection,
-  highlightedCode,
-  onRobotPress,
-}: {
-  robots: NormalizedRobot[];
-  projection: MapProjection;
-  highlightedCode: string | null;
-  onRobotPress?: (code: string) => void;
-}) {
-  // Robot logo: Metro-resolved asset. Falls back to coloured circle + initials if absent.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const logoSrc = require("@/assets/images/logo.png") as number;
-
-  const renders = useMemo(() => {
-    if (!robots || robots.length === 0) return [];
-    return robots
-      .filter((r) => !!r.position)
-      .map((robot) => {
-        const { x, y } = projectRobot(robot.position, projection);
-        const heading = robot.position!.headingDeg ?? 0;
-        const hex = statusHexFor(robot);
-        const isHighlighted = highlightedCode === robot.robotCode;
-        const isDimmed = highlightedCode !== null && !isHighlighted;
-        const R = ROBOT_RING_R;
-
-        // Arrow polygon points in robot-local space (0,0 at centre, -Y = forward).
-        const aw = ROBOT_ARROW_HALF_W;
-        const ah = ROBOT_ARROW_HALF_H;
-        const ao = ROBOT_ARROW_OFFSET;
-        // Arrow: tip at (0, -ao), base at (aw, -ao+ah) and (-aw, -ao+ah).
-        const arrowPath =
-          `M 0,${-ao} ` +
-          `L ${aw},${-ao + ah} ` +
-          `L ${aw * 0.4},${-ao + ah} ` +
-          `L ${aw * 0.4},${-ao + ah + 3} ` +
-          `L ${-aw * 0.4},${-ao + ah + 3} ` +
-          `L ${-aw * 0.4},${-ao + ah} ` +
-          `L ${-aw},${-ao + ah} Z`;
-
-        return { robot, x, y, heading, hex, isHighlighted, isDimmed, R, arrowPath };
-      });
-  }, [robots, projection, highlightedCode]);
-
-  return (
-    <>
-      {renders.map(({ robot, x, y, heading, hex, isHighlighted, isDimmed, R, arrowPath }) => (
-        <G
-          key={robot.robotCode}
-          opacity={isDimmed ? 0.18 : 1}
-          onPress={onRobotPress ? () => onRobotPress(robot.robotCode) : undefined}
-          transform={`translate(${x}, ${y}) rotate(${heading})`}
-        >
-          {/* Selection ring */}
-          <Circle
-            cx={0}
-            cy={0}
-            r={R}
-            fill={isHighlighted ? "#22c55e" : "#3b82f6"}
-            opacity={isHighlighted ? 0.3 : 0.12}
-          />
-          {isHighlighted ? (
-            <Circle
-              cx={0}
-              cy={0}
-              r={R}
-              fill="none"
-              stroke="#22c55e"
-              strokeWidth={2.5}
-            />
-          ) : null}
-
-          {/* Logo image — centred at (0,0), falls back to coloured circle + code initials */}
-          {logoSrc ? (
-            <SvgImage
-              x={-ROBOT_LOGO_HALF}
-              y={-ROBOT_LOGO_HALF}
-              width={ROBOT_LOGO_SIZE}
-              height={ROBOT_LOGO_SIZE}
-              href={logoSrc}
-            />
-          ) : (
-            <>
-              <Circle cx={0} cy={0} r={ROBOT_LOGO_HALF} fill={hex} />
-              <SvgText
-                x={-ROBOT_LOGO_HALF + 1}
-                y={ROBOT_LOGO_HALF / 2 + 3}
-                fill="#ffffff"
-                fontSize={9}
-                fontWeight="bold"
-                fontFamily="System"
-              >
-                {robot.robotCode.slice(0, 2).toUpperCase()}
-              </SvgText>
-            </>
-          )}
-
-          {/* Direction arrow */}
-          <Path
-            d={arrowPath}
-            fill={hex}
-            stroke="rgba(255,255,255,0.7)"
-            strokeWidth={0.8}
-            strokeLinejoin="round"
-          />
-        </G>
-      ))}
-    </>
-  );
-}
-
-/* ─── Main canvas ─────────────────────────────────────────────────── */
+import type { NormalizedRobot } from "@/shared/api";
+import { useIsDark } from "@/shared/theme";
 
 interface MapCanvasProps {
-  floorplan: MapFloorplanDto | null;
   robots: NormalizedRobot[];
   projection: MapProjection;
-  highlightedCode: string | null;
+  highlightedCode?: string | null;
+  selectedZoneId?: string | null;
   onRobotPress?: (code: string) => void;
-  /**
-   * Optional render-size overrides. Defaults to `projection.widthPx ×
-   * projection.heightPx`. Pass `"100%"` for either to make the canvas
-   * fill its container; pair with `preserveAspectRatio` (default
-   * `"xMidYMid meet"`) for letterboxing.
-   */
-  width?: NumberProp;
-  height?: NumberProp;
-  preserveAspectRatio?: string;
+  onZonePress?: (zone: any) => void;
+  showLabels?: boolean;
+  showDimensions?: boolean;
+  width?: number | string;
+  height?: number | string;
 }
 
 export function MapCanvas({
-  floorplan,
   robots,
   projection,
   highlightedCode,
+  selectedZoneId,
   onRobotPress,
+  onZonePress,
+  showLabels = true,
+  showDimensions = true,
   width,
   height,
-  preserveAspectRatio = "xMidYMid meet",
 }: MapCanvasProps) {
-  const { widthPx, heightPx, pxPerMeter } = projection;
-  const renderW = width ?? widthPx;
-  const renderH = height ?? heightPx;
+  const isDark = useIsDark();
+
+  /* Theme Styling */
+  const gridLineColor = isDark ? "rgba(255,255,255,0.06)" : "#e2e8f0";
+  const gridMajorColor = isDark ? "rgba(255,255,255,0.12)" : "#cbd5e1";
+  const wallStroke = isDark ? "#94a3b8" : "#0f172a";
+  const dimColor = isDark ? "#94a3b8" : "#475569";
+  const pathLineColor = isDark ? "#94a3b8" : "#0f172a";
+  const cornerDotFill = isDark ? "#ffffff" : "#000000";
+  const canvasBg = isDark ? "#090d16" : "#ffffff";
+
+  const vbX = showDimensions ? -0.4 : -0.1;
+  const vbY = showDimensions ? -0.4 : -0.1;
+  const vbW = showDimensions ? 3.8 : 3.2;
+  const vbH = showDimensions ? 3.9 : 3.3;
 
   return (
     <Svg
-      width={renderW}
-      height={renderH}
-      viewBox={`0 0 ${widthPx} ${heightPx}`}
-      preserveAspectRatio={preserveAspectRatio}
+      width={width ?? "100%"}
+      height={height ?? "100%"}
+      viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
     >
-      {/* Layer 1: Floorplan background (image or grid) */}
-      <FloorplanLayer floorplan={floorplan} projection={projection} />
+      {/* ── 0. Background ── */}
+      <Rect x={vbX} y={vbY} width={vbW} height={vbH} fill={canvasBg} />
 
-      {/* Layer 2: Semantic objects (shelves / aisles / zones) */}
-      <SemanticObjectsLayer
-        objects={floorplan?.semanticObjects ?? []}
-        pxPerMeter={pxPerMeter}
-      />
+      {/* ── 1. Grid (0.5m minor, 1.0m major) ── */}
+      <G opacity={0.75}>
+        {[0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0].map((v) => (
+          <G key={`grid-${v}`}>
+            <Line
+              x1={v} y1={0} x2={v} y2={3}
+              stroke={v % 1 === 0 ? gridMajorColor : gridLineColor}
+              strokeWidth={v % 1 === 0 ? 0.012 : 0.006}
+              strokeDasharray={v % 1 === 0 ? undefined : "0.02, 0.02"}
+            />
+            <Line
+              x1={0} y1={v} x2={3} y2={v}
+              stroke={v % 1 === 0 ? gridMajorColor : gridLineColor}
+              strokeWidth={v % 1 === 0 ? 0.012 : 0.006}
+              strokeDasharray={v % 1 === 0 ? undefined : "0.02, 0.02"}
+            />
+          </G>
+        ))}
+      </G>
 
-      {/* Layer 3: Navigation graph (nodes + edges) */}
-      <NavigationLayer
-        nodes={floorplan?.nodes ?? []}
-        edges={floorplan?.edges ?? []}
-        pxPerMeter={pxPerMeter}
-      />
+      {/* ── 2. Outer Dimension Lines (3 m) ── */}
+      {showDimensions && (
+        <G>
+          {/* Top 3m Dimension */}
+          <Line x1={0} y1={-0.18} x2={3} y2={-0.18} stroke={dimColor} strokeWidth={0.012} />
+          <Line x1={0} y1={-0.24} x2={0} y2={-0.12} stroke={dimColor} strokeWidth={0.015} />
+          <Line x1={3} y1={-0.24} x2={3} y2={-0.12} stroke={dimColor} strokeWidth={0.015} />
+          <SvgText x={1.5} y={-0.24} fill={dimColor} fontSize={0.11} fontWeight="700" textAnchor="middle">
+            3 m
+          </SvgText>
 
-      {/* Layer 4: Robot markers — dimmed except the highlighted one */}
-      <RobotMarkerLayer
-        robots={robots}
-        projection={projection}
-        highlightedCode={highlightedCode}
-        onRobotPress={onRobotPress}
-      />
+          {/* Left 3m Dimension */}
+          <Line x1={-0.18} y1={0} x2={-0.18} y2={3} stroke={dimColor} strokeWidth={0.012} />
+          <Line x1={-0.24} y1={0} x2={-0.12} y2={0} stroke={dimColor} strokeWidth={0.015} />
+          <Line x1={-0.24} y1={3} x2={-0.12} y2={3} stroke={dimColor} strokeWidth={0.015} />
+          <SvgText x={-0.26} y={1.54} fill={dimColor} fontSize={0.11} fontWeight="700" textAnchor="end">
+            3 m
+          </SvgText>
+
+          {/* Bottom 3m Dimension */}
+          <Line x1={0} y1={3.38} x2={3} y2={3.38} stroke={dimColor} strokeWidth={0.012} />
+          <Line x1={0} y1={3.3} x2={0} y2={3.46} stroke={dimColor} strokeWidth={0.015} />
+          <Line x1={3} y1={3.3} x2={3} y2={3.46} stroke={dimColor} strokeWidth={0.015} />
+          <SvgText x={1.5} y={3.54} fill={dimColor} fontSize={0.11} fontWeight="700" textAnchor="middle">
+            3 m
+          </SvgText>
+        </G>
+      )}
+
+      {/* ── 3. Outer Walls & Door Entrance ── */}
+      <G>
+        <Line x1={0} y1={0} x2={3} y2={0} stroke={wallStroke} strokeWidth={0.035} />
+        <Line x1={0} y1={0} x2={0} y2={3} stroke={wallStroke} strokeWidth={0.035} />
+        <Line x1={3} y1={0} x2={3} y2={3} stroke={wallStroke} strokeWidth={0.035} />
+
+        {/* Bottom wall with entrance door gap */}
+        <Line x1={0} y1={3} x2={DOOR.x} y2={3} stroke={wallStroke} strokeWidth={0.035} />
+        <Line x1={DOOR.x + DOOR.width} y1={3} x2={3} y2={3} stroke={wallStroke} strokeWidth={0.035} />
+
+        {/* Door swing line & Arrow */}
+        <Line x1={DOOR.x} y1={3} x2={DOOR.x + 0.25} y2={2.75} stroke={wallStroke} strokeWidth={0.02} />
+        <Line x1={1.375} y1={3.35} x2={1.375} y2={3.05} stroke={wallStroke} strokeWidth={0.018} />
+        <Path d="M 1.335,3.12 L 1.375,3.05 L 1.415,3.12" fill="none" stroke={wallStroke} strokeWidth={0.018} />
+      </G>
+
+      {/* ── 4. Cashier Counter ("Thu Ngan") ── */}
+      <G>
+        <Rect
+          x={CASHIER.x}
+          y={CASHIER.y}
+          width={CASHIER.width}
+          height={CASHIER.height}
+          fill={CASHIER.fill}
+          stroke={CASHIER.stroke}
+          strokeWidth={CASHIER.strokeWidth}
+          rx={0.02}
+        />
+        <G transform={`translate(${CASHIER.x + CASHIER.width / 2}, ${CASHIER.y + CASHIER.height / 2})`}>
+          <SvgText
+            x={0}
+            y={CASHIER.fontSize * 0.35}
+            fill={isDark ? "#e2e8f0" : "#0f172a"}
+            fontSize={CASHIER.fontSize}
+            fontWeight="800"
+            textAnchor="middle"
+          >
+            {CASHIER.label}
+          </SvgText>
+        </G>
+      </G>
+
+      {/* ── 5. Navigation Paths & Lines ── */}
+      <G>
+        {PATH_SEGMENTS.map((seg, idx) => (
+          <Line
+            key={`path-${idx}`}
+            x1={seg.from.x}
+            y1={seg.from.y}
+            x2={seg.to.x}
+            y2={seg.to.y}
+            stroke={pathLineColor}
+            strokeWidth={0.02}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+
+        {/* ── Corner Nodes (`•` Black filled dots) ── */}
+        {NAV_NODES.filter((n) => n.type === "corner").map((node) => (
+          <Circle
+            key={node.id}
+            cx={node.x}
+            cy={node.y}
+            r={0.045}
+            fill={cornerDotFill}
+            stroke={isDark ? "#090d16" : "#ffffff"}
+            strokeWidth={0.008}
+          />
+        ))}
+
+        {/* ── Stocking Interaction Nodes (`┿` / Cross-ticks) ── */}
+        {NAV_NODES.filter((n) => n.type === "stocking").map((node) => {
+          const tickLen = 0.075;
+          const isVert = node.orientation === "vertical";
+          const x1 = isVert ? node.x - tickLen : node.x;
+          const x2 = isVert ? node.x + tickLen : node.x;
+          const y1 = isVert ? node.y : node.y - tickLen;
+          const y2 = isVert ? node.y : node.y + tickLen;
+
+          return (
+            <G key={node.id}>
+              {/* Cross-tick line perpendicular to path */}
+              <Line
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={pathLineColor}
+                strokeWidth={0.022}
+                strokeLinecap="round"
+              />
+              {/* Central node dot */}
+              <Circle
+                cx={node.x}
+                cy={node.y}
+                r={0.025}
+                fill={cornerDotFill}
+              />
+            </G>
+          );
+        })}
+      </G>
+
+      {/* ── 6. Dock Point (`○` Circle Symbol) ── */}
+      <G transform={`translate(${DOCK.x}, ${DOCK.y})`}>
+        <Circle
+          cx={0}
+          cy={0}
+          r={DOCK.outerRadius}
+          fill={canvasBg}
+          stroke={wallStroke}
+          strokeWidth={0.022}
+        />
+      </G>
+
+      {/* ── 7. Zones / Shelves (Numbers 100% centered INSIDE) ── */}
+      {ZONES.map((zone) => {
+        const isSelected = selectedZoneId === zone.id;
+        const centerX = zone.x + zone.width / 2;
+        const centerY = zone.y + zone.height / 2;
+        const fontSize = zone.fontSize ?? 0.18;
+
+        return (
+          <G
+            key={zone.id}
+            onPress={onZonePress ? () => onZonePress(zone) : undefined}
+          >
+            {/* Shelf Box */}
+            <Rect
+              x={zone.x}
+              y={zone.y}
+              width={zone.width}
+              height={zone.height}
+              fill={isSelected ? `${zone.stroke}35` : zone.fill}
+              stroke={zone.stroke}
+              strokeWidth={isSelected ? (zone.strokeWidth ?? 0.025) * 1.5 : (zone.strokeWidth ?? 0.025)}
+              rx={0.02}
+            />
+
+            {/* Zone Number Label 100% Centered INSIDE */}
+            <G transform={`translate(${centerX}, ${centerY})`}>
+              <SvgText
+                x={0}
+                y={fontSize * 0.35}
+                fill={zone.stroke}
+                fontSize={fontSize}
+                fontWeight="900"
+                textAnchor="middle"
+              >
+                {zone.label}
+              </SvgText>
+            </G>
+          </G>
+        );
+      })}
+
+      {/* ── 8. Robot Markers ── */}
+      {robots.map((robot) => {
+        if (!robot.position) return null;
+        const { x, y } = projectRobot(robot.position, projection);
+        const heading = robot.position.headingDeg ?? 0;
+        const hex = statusHexFor(robot);
+        const isHighlighted = highlightedCode === robot.robotCode;
+
+        const rSize = 0.075;
+        const transform = `translate(${x}, ${y}) rotate(${heading})`;
+
+        return (
+          <G
+            key={robot.robotCode}
+            onPress={onRobotPress ? () => onRobotPress(robot.robotCode) : undefined}
+          >
+            {/* Pulsing Halo */}
+            <Circle
+              cx={x}
+              cy={y}
+              r={rSize + 0.035}
+              fill={hex}
+              opacity={isHighlighted ? 0.45 : 0.22}
+            />
+
+            {/* Robot Body Circle + Direction Arrow */}
+            <G transform={transform}>
+              <Circle cx={0} cy={0} r={rSize} fill={hex} stroke="#ffffff" strokeWidth={0.012} />
+              <Path d="M 0,-0.055 L 0.03,0.02 L -0.03,0.02 Z" fill="#ffffff" />
+            </G>
+
+            {/* Robot Code Badge */}
+            {showLabels && (
+              <G transform={`translate(${x}, ${y + rSize + 0.06})`}>
+                <Rect
+                  x={-0.16}
+                  y={-0.045}
+                  width={0.32}
+                  height={0.08}
+                  fill={isDark ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.95)"}
+                  stroke={hex}
+                  strokeWidth={0.008}
+                  rx={0.03}
+                />
+                <SvgText
+                  x={0}
+                  y={0.018}
+                  fill={isDark ? "#ffffff" : "#0f172a"}
+                  fontSize={0.05}
+                  fontWeight="800"
+                  textAnchor="middle"
+                >
+                  {robot.robotCode}
+                </SvgText>
+              </G>
+            )}
+          </G>
+        );
+      })}
     </Svg>
   );
 }

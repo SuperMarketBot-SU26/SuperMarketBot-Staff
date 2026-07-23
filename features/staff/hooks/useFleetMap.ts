@@ -1,18 +1,17 @@
 /**
- * `useFleetMap` — fetches the floorplan (image + nodes + edges +
- * semantic objects) for the default floor and exposes loading / error /
- * refresh state shaped the same way as `useRobotList`.
+ * `useFleetMap` — fetches the latest floorplan (nodes + edges + semantic objects)
+ * and exposes loading / error / refresh state.
  *
- * Shape contract (matches `RobotListState` in useRobotList.ts):
- *   - `floorplan` — MapFloorplanDto | null while loading, or `null`
- *     after a failed load (so the map layer can show the placeholder).
+ * Shape contract:
+ *   - `floorplan` — MapFloorplanDto | null while loading, or null after failure.
  *   - `error`     — user-facing Vietnamese message, or null.
  *   - `refreshing` — true while a user-initiated reload is in flight.
- *   - `reload`     — manual trigger (e.g. "Thử lại" button).
+ *   - `reload`     — manual trigger.
  *   - `onRefresh`  — for `<RefreshControl onRefresh={...} />`.
+ *
+ * Uses: GET /api/v1/maps/latest (no query params needed)
  */
 import { useCallback, useEffect, useState } from "react";
-import { DEFAULT_FLOOR_ID } from "@/shared/config/floor";
 import { getLatestMap } from "@/shared/api";
 import type { MapFloorplanDto } from "@/shared/api";
 import { useApiErrorMessage } from "@/shared/hooks";
@@ -25,7 +24,7 @@ export interface FleetMapState {
   onRefresh: () => Promise<void>;
 }
 
-export function useFleetMap(floorId: number = DEFAULT_FLOOR_ID): FleetMapState {
+export function useFleetMap(): FleetMapState {
   const [floorplan, setFloorplan] = useState<MapFloorplanDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,20 +33,19 @@ export function useFleetMap(floorId: number = DEFAULT_FLOOR_ID): FleetMapState {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const data = await getLatestMap(floorId);
+      const data = await getLatestMap();
       setFloorplan(data);
     } catch (e) {
       setError(message(e));
-      // Preserve a previously-rendered map if the refresh fails.
       setFloorplan((prev) => prev ?? null);
     }
-  }, [floorId, message]);
+  }, [message]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await getLatestMap(floorId);
+        const data = await getLatestMap();
         if (!cancelled) setFloorplan(data);
       } catch (e) {
         if (cancelled) return;
@@ -58,7 +56,7 @@ export function useFleetMap(floorId: number = DEFAULT_FLOOR_ID): FleetMapState {
     return () => {
       cancelled = true;
     };
-  }, [floorId, message]);
+  }, [message]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

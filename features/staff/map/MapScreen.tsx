@@ -1,25 +1,19 @@
 /**
- * MapScreen — full-screen interactive store map for the Staff app.
+ * MapScreen — Full-screen Interactive Store Map with Legend & Shelf Inspection.
  *
- * Uses react-native-svg for all map rendering (see MapCanvas.tsx).
- * Pan/pinch handled by Reanimated animated values driving the
- * transform on an Animated.View container that wraps the SVG canvas.
- * GestureDetector wires pan + pinch only (double-tap disabled).
- * One-tap on a robot pin in the canvas is handled inside MapCanvas.
- *
- * Layers (back → front):
- *   1. SVG Canvas: floorplan + semantic objects + graph + robot pins
- *   2. Animated.View: applies pan/zoom transform on top
- *   3. UI overlays: live pill, top bar, zoom controls, legend, robot list
- *
- * Robot focus: tapping a robot (from list row OR canvas pin) zooms the
- * camera onto the robot, sets `highlightedCode` so the canvas dims the
- * other robots, and pushes the robot detail modal which reads ?code=.
+ * Implements:
+ * - Precise 3m x 3m store floorplan SVG with 4 zones & outer dimensions
+ * - Pan/Zoom gestures via GestureHandler & Reanimated
+ * - Interactive Legend overlay (Chú thích bản đồ)
+ * - Interactive shelf/zone inspector sheet
+ * - Floating controls (Zoom +/- , Fit to Screen, Toggle Legend)
+ * - Fleet list bottom sheet with live status badges
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image as RNImage,
+  Dimensions,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -36,10 +30,19 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { palette, useIsDark } from "@/shared/theme";
-import { BotIcon, ChevronLeftIcon, PlusIcon, RefreshIcon } from "@/shared/ui";
+import {
+  BotIcon,
+  ChevronLeftIcon,
+  CrosshairIcon,
+  InfoIcon,
+  PlusIcon,
+  RefreshIcon,
+  XIcon,
+} from "@/shared/ui";
 import type { NormalizedRobot } from "@/shared/api";
-import { useFleetMap, useRobotList } from "./hooks";
+import { useRobotList } from "./hooks";
 import { MapCanvas } from "./components";
 import {
   makeProjection,
@@ -47,23 +50,13 @@ import {
   MAX_ZOOM,
   statusHexFor,
   describeRobot,
-  type MapProjection,
 } from "./lib/map";
-
-/* ─── Constants ─────────────────────────────────────────────────── */
+import { LEGEND_ITEMS, ZONES, type Zone } from "./lib/storeLayout";
 
 const SPRING = { stiffness: 180, damping: 22 };
+const SCREEN = Dimensions.get("window");
 
-const STATUS_LEGEND: { label: string; hex: string }[] = [
-  { label: "Đang di chuyển", hex: "#22c55e" },
-  { label: "Đang rảnh",    hex: "#4a4458" },
-  { label: "Đang tương tác", hex: "#7d5260" },
-  { label: "Sạc / ngoại tuyến", hex: "#cac4d0" },
-  { label: "Đã tắt nguồn", hex: "#79747e" },
-];
-
-/* ─── Zoom indicator (UI-thread shared value → label) ────────────── */
-
+/* ─── Zoom Level Indicator Pill ─── */
 function ZoomIndicator({ scale }: { scale: SharedValue<number> }) {
   const [label, setLabel] = useState("100%");
 
@@ -81,8 +74,125 @@ function ZoomIndicator({ scale }: { scale: SharedValue<number> }) {
   );
 }
 
-/* ─── Robot row inside bottom sheet ──────────────────────────────── */
+/* ─── Legend Overlay Card (Chú thích) ─── */
+function MapLegendModal({
+  visible,
+  onClose,
+  isDark,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  isDark: boolean;
+}) {
+  const cardBg = isDark ? palette.gray[900] : "#ffffff";
+  const textColor = isDark ? "#ffffff" : palette.gray[900];
+  const subColor = isDark ? palette.gray[400] : palette.gray[600];
 
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable
+          style={[styles.legendModalCard, { backgroundColor: cardBg }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={styles.legendHeader}>
+            <View style={styles.legendTitleRow}>
+              <InfoIcon size={20} color={palette.violet[500]} />
+              <Text style={[styles.legendTitle, { color: textColor }]}>
+                Chú thích bản đồ
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <XIcon size={18} color={subColor} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.legendList}>
+            {LEGEND_ITEMS.map((item, idx) => (
+              <View key={idx} style={styles.legendItemRow}>
+                <View
+                  style={[
+                    styles.symbolBadge,
+                    {
+                      backgroundColor: isDark
+                        ? palette.gray[800]
+                        : palette.gray[100],
+                    },
+                  ]}
+                >
+                  <Text style={styles.symbolText}>{item.symbol}</Text>
+                </View>
+                <View style={styles.legendTextWrap}>
+                  <Text style={[styles.legendItemLabel, { color: textColor }]}>
+                    : {item.label}
+                  </Text>
+                  <Text style={[styles.legendItemDesc, { color: subColor }]}>
+                    {item.description}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/* ─── Zone Details Modal (Shelf Inspector) ─── */
+function ZoneDetailModal({
+  zone,
+  onClose,
+  isDark,
+}: {
+  zone: Zone | null;
+  onClose: () => void;
+  isDark: boolean;
+}) {
+  if (!zone) return null;
+  const cardBg = isDark ? palette.gray[900] : "#ffffff";
+  const textColor = isDark ? "#ffffff" : palette.gray[900];
+  const subColor = isDark ? palette.gray[400] : palette.gray[600];
+
+  return (
+    <Modal visible={!!zone} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={[styles.zoneModalCard, { backgroundColor: cardBg }]} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.zoneHeader}>
+            <View style={[styles.zoneBadge, { backgroundColor: zone.stroke }]}>
+              <Text style={styles.zoneBadgeText}>Zone {zone.zoneNumber}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <XIcon size={18} color={subColor} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.zoneName, { color: textColor }]}>{zone.name}</Text>
+          <Text style={[styles.zoneCategory, { color: palette.violet[500] }]}>{zone.category}</Text>
+          <Text style={[styles.zoneDesc, { color: subColor }]}>{zone.description}</Text>
+
+          <View style={styles.zoneMetaRow}>
+            <View style={[styles.zoneMetaPill, { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] }]}>
+              <Text style={[styles.zoneMetaLabel, { color: subColor }]}>Kích thước kệ</Text>
+              <Text style={[styles.zoneMetaVal, { color: textColor }]}>{zone.width}m × {zone.height}m</Text>
+            </View>
+            <View style={[styles.zoneMetaPill, { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] }]}>
+              <Text style={[styles.zoneMetaLabel, { color: subColor }]}>Trạng thái hàng</Text>
+              <Text style={[styles.zoneMetaVal, { color: "#22c55e" }]}>Đầy đủ</Text>
+            </View>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/* ─── Robot List Row ─── */
 function RobotRow({
   robot,
   onPress,
@@ -92,276 +202,133 @@ function RobotRow({
   onPress: (code: string) => void;
   isDark: boolean;
 }) {
-  const cfg = palette;
+  const hex = statusHexFor(robot);
   const batteryColor =
     robot.batteryPct < 25
       ? palette.red[500]
-      : isDark ? palette.gray[400] : palette.gray[500];
-  const hex = statusHexFor(robot);
+      : robot.batteryPct < 50
+      ? palette.amber[500]
+      : isDark
+      ? palette.gray[400]
+      : palette.gray[600];
 
   return (
     <TouchableOpacity
-      style={[styles.robotRow, { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] }]}
+      style={[
+        styles.robotRow,
+        { backgroundColor: isDark ? palette.gray[800] : palette.gray[50] },
+      ]}
       onPress={() => onPress(robot.robotCode)}
       activeOpacity={0.7}
     >
-      <View style={[styles.robotAvatar, { backgroundColor: `${hex}22` }]}>
-        <BotIcon size={14} color={hex} />
+      <View style={[styles.robotIcon, { backgroundColor: `${hex}25` }]}>
+        <BotIcon size={20} color={hex} />
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.robotId, { color: isDark ? "#ffffff" : palette.gray[900] }]}>
+
+      <View style={styles.robotInfo}>
+        <Text style={[styles.robotCode, { color: isDark ? "#fff" : palette.gray[900] }]}>
           {robot.robotCode}
         </Text>
-        <Text style={[styles.robotTask, { color: isDark ? palette.gray[400] : palette.gray[500] }]}>
+        <Text style={[styles.robotStatus, { color: isDark ? palette.gray[400] : palette.gray[500] }]}>
           {describeRobot(robot)}
         </Text>
       </View>
-      <Text style={[styles.batteryText, { color: batteryColor }]}>
-        {robot.batteryPct}%
-      </Text>
+
+      <View style={styles.robotBattery}>
+        <Text style={[styles.batteryText, { color: batteryColor }]}>
+          ⚡ {robot.batteryPct}%
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
-/* ─── Status legend (collapsible card, top-left) ────────────────── */
-
-function StatusLegendCard({ isDark }: { isDark: boolean }) {
-  const pillBg = isDark ? "rgba(20,20,30,0.85)" : "rgba(255,255,255,0.92)";
-  const cardBorder = isDark ? palette.gray[800] : palette.gray[200];
-  const textPrimary = isDark ? "#ffffff" : palette.gray[900];
-  const textSecondary = isDark ? palette.gray[300] : palette.gray[700];
-  // Faint green — easier to read than pure white on the translucent card.
-  const titleColor = isDark ? "#86efac" : "#15803d";
-  const [expanded, setExpanded] = useState(true);
-
-  return (
-    <View style={styles.legendWrap} pointerEvents="box-none">
-      <Pressable
-        onPress={() => setExpanded((v) => !v)}
-        style={[styles.legendCard, { backgroundColor: pillBg, borderColor: cardBorder }]}
-      >
-        <Text style={[styles.legendTitle, { color: titleColor }]}>
-          Trạng thái Robot
-        </Text>
-        {expanded
-          ? STATUS_LEGEND.map((s) => (
-              <View key={s.label} style={styles.legendRow}>
-                <View style={[styles.legendDot, { backgroundColor: s.hex }]} />
-                <Text style={[styles.legendLabel, { color: textSecondary }]}>
-                  {s.label}
-                </Text>
-              </View>
-            ))
-          : null}
-      </Pressable>
-    </View>
-  );
-}
-
-/* ─── Bottom robot list ──────────────────────────────────────────── */
-
-function RobotListSheet({
-  robots,
-  onPress,
-  onRefresh,
-  refreshing,
-  error,
-  isDark,
-}: {
-  robots: NormalizedRobot[];
-  onPress: (code: string) => void;
-  onRefresh: () => void;
-  refreshing: boolean;
-  error: string | null;
-  isDark: boolean;
-}) {
-  const [expanded, setExpanded] = useState(true);
-
-  return (
-    <View
-      style={[
-        styles.sheet,
-        { backgroundColor: isDark ? palette.gray[900] : "#ffffff", borderColor: isDark ? palette.gray[800] : palette.gray[200] },
-      ]}
-    >
-      <View style={styles.sheetHeader}>
-        <Text style={[styles.sheetTitle, { color: isDark ? "#ffffff" : palette.gray[900] }]}>
-          {robots.length > 0 ? `${robots.length} robot trên bản đồ` : "Chưa có robot"}
-        </Text>
-        <TouchableOpacity onPress={() => setExpanded((v) => !v)} hitSlop={10}>
-          <Text style={[styles.sheetToggle, { color: palette.violet[500] }]}>
-            {expanded ? "Thu gọn" : "Mở rộng"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {error ? (
-        <Text style={[styles.sheetError, { color: palette.red[500] }]}>{error}</Text>
-      ) : null}
-
-      {expanded ? (
-        robots.length === 0 && !error ? (
-          <View style={styles.sheetCenter}>
-            <ActivityIndicator color={palette.violet[600]} />
-          </View>
-        ) : (
-          <ScrollView
-            style={styles.robotScroll}
-            contentContainerStyle={styles.robotScrollContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={isDark ? palette.gray[400] : palette.gray[500]}
-              />
-            }
-          >
-            {robots.map((r) => (
-              <RobotRow
-                key={r.robotCode}
-                robot={r}
-                onPress={onPress}
-                isDark={isDark}
-              />
-            ))}
-          </ScrollView>
-        )
-      ) : null}
-    </View>
-  );
-}
-
-/* ─── Main screen ─────────────────────────────────────────────────── */
-
+/* ─── Main Screen Component ─── */
 export default function MapScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const isDark = useIsDark();
-  const { robots, error: robotsError, refreshing, reload: reloadRobots } = useRobotList();
-  const { floorplan, error: mapError, stale, onRefresh: refreshMap } = useFleetMap();
+  const { robots, refreshing, onRefresh } = useRobotList();
 
-  /* ── Image size discovery (from floorplan image) ──────────────── */
-  const [imageSize, setImageSize] = useState<{
-    naturalWidth: number;
-    naturalHeight: number;
-  } | null>(null);
+  const [legendVisible, setLegendVisible] = useState(false);
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
+  const [bottomSheetExpanded, setBottomSheetExpanded] = useState(false);
+
+  /* Viewport dimensions */
+  const [viewport, setViewport] = useState({
+    width: SCREEN.width,
+    height: SCREEN.height,
+  });
 
   useEffect(() => {
-    const raw = floorplan?.floorplanImageUrl;
-    if (!raw) { setImageSize(null); return; }
-    let cancelled = false;
-    const resolved = /^https?:\/\//i.test(raw) ? raw : raw.startsWith("/") ? raw.slice(1) : raw;
-    RNImage.getSize(
-      resolved,
-      (w, h) => {
-        if (cancelled) return;
-        setImageSize({ naturalWidth: w, naturalHeight: h });
-      },
-      () => { if (!cancelled) setImageSize(null); },
-    );
-    return () => { cancelled = true; };
-  }, [floorplan?.floorplanImageUrl]);
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setViewport({
+        width: Math.max(window.width ?? SCREEN.width, 100),
+        height: Math.max(window.height ?? SCREEN.height, 100),
+      });
+    });
+    return () => subscription?.remove();
+  }, []);
 
-  const projection: MapProjection = makeProjection(floorplan, imageSize);
+  /* Projection */
+  const projection = useMemo(() => {
+    return makeProjection(null, viewport.width, viewport.height);
+  }, [viewport.width, viewport.height]);
 
-  /* ── Transform state ──────────────────────────────────────────── */
-  const containerW = useSharedValue(0);
-  const containerH = useSharedValue(0);
+  /* Transform shared values */
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const scale = useSharedValue(1);
-  const [highlightedCode, setHighlightedCode] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
 
-  /* ── Fit to screen ────────────────────────────────────────────── */
   const fitToScreen = useCallback(() => {
-    const cw = containerW.value;
-    const ch = containerH.value;
-    if (!cw || !ch) return;
-    const zoom = Math.min(
-      (cw - 60) / projection.widthPx,
-      (ch - 60) / projection.heightPx,
-      MAX_ZOOM,
-    );
-    const z = Math.max(MIN_ZOOM, zoom);
+    const vw = viewport.width;
+    const vh = viewport.height;
+    if (!vw || !vh) return;
+
+    const padding = 20;
+    const zoomX = (vw - padding * 2) / projection.widthPx;
+    const zoomY = (vh - padding * 2) / projection.heightPx;
+    const z = Math.max(MIN_ZOOM, Math.min(zoomX, zoomY, MAX_ZOOM));
+
     scale.value = withSpring(z, SPRING);
-    tx.value = withSpring((cw - projection.widthPx * z) / 2, SPRING);
-    ty.value = withSpring((ch - projection.heightPx * z) / 2, SPRING);
-  }, [containerH, containerW, projection.heightPx, projection.widthPx, scale, tx, ty]);
+    tx.value = withSpring((vw - projection.widthPx * z) / 2, SPRING);
+    ty.value = withSpring((vh - projection.heightPx * z) / 2, SPRING);
+  }, [viewport.width, viewport.height, projection.widthPx, projection.heightPx, scale, tx, ty]);
 
   useEffect(() => {
-    if (ready) fitToScreen();
-  }, [ready, fitToScreen, projection.widthPx, projection.heightPx]);
+    const timer = setTimeout(fitToScreen, 100);
+    return () => clearTimeout(timer);
+  }, [fitToScreen]);
 
-  /* ── Zoom on a specific robot ─────────────────────────────────
-   * Sets highlightedCode (so canvas dims other robots) AND animates
-   * the camera to centre the chosen robot pin.
-   */
-  const zoomOnRobot = useCallback(
-    (code: string) => {
-      const list = robots ?? [];
-      const target = list.find((r) => r.robotCode === code);
-      if (!target?.position) return;
-      const cw = containerW.value;
-      const ch = containerH.value;
-      if (!cw || !ch) return;
-      const px = target.position.x * projection.pxPerMeter;
-      const py = target.position.y * projection.pxPerMeter;
-      const targetZoom = Math.min(Math.max(scale.value, 1.6), MAX_ZOOM);
-      tx.value = withSpring(cw / 2 - px * targetZoom, SPRING);
-      ty.value = withSpring(ch / 2 - py * targetZoom, SPRING);
-      scale.value = withSpring(targetZoom, SPRING);
-    },
-    [containerH, containerW, projection.pxPerMeter, robots, scale, tx, ty],
-  );
-
-  /* ── Robot tap (canvas pin or list row) ──────────────────────── */
-  const handleRobotPress = useCallback(
-    (code: string) => {
-      setHighlightedCode((prev) => {
-        // Toggle off if tapping the same robot again.
-        if (prev === code) return null;
-        return code;
-      });
-      // Zoom on the chosen robot (camera animates either way).
-      zoomOnRobot(code);
-      router.push(`/staff/robot-detail?code=${encodeURIComponent(code)}` as any);
-    },
-    [router, zoomOnRobot],
-  );
-
-  /* ── Container layout ─────────────────────────────────────────── */
-  const onContainerLayout = useCallback(
-    (e: { nativeEvent: { layout: { width: number; height: number } } }) => {
-      containerW.value = e.nativeEvent.layout.width;
-      containerH.value = e.nativeEvent.layout.height;
-      if (!ready) {
-        fitToScreen();
-        setReady(true);
-      }
-    },
-    [containerH, containerW, fitToScreen, ready],
-  );
-
-  /* ── Gesture handlers ───────────────────────────────────────────
-   * Pan + Pinch only. One-tap on a robot pin handled via TouchableOpacity
-   * inside the canvas (Touchable on the SVG element).
-   */
+  /* Gestures */
   const startTx = useSharedValue(0);
   const startTy = useSharedValue(0);
   const startScale = useSharedValue(1);
 
   const pan = Gesture.Pan()
     .averageTouches(true)
-    .onStart(() => { startTx.value = tx.value; startTy.value = ty.value; })
-    .onUpdate((e) => { tx.value = startTx.value + e.translationX; ty.value = startTy.value + e.translationY; });
+    .onStart(() => {
+      startTx.value = tx.value;
+      startTy.value = ty.value;
+    })
+    .onUpdate((e) => {
+      tx.value = startTx.value + e.translationX;
+      ty.value = startTy.value + e.translationY;
+    });
 
   const pinch = Gesture.Pinch()
-    .onStart(() => { startScale.value = scale.value; startTx.value = tx.value; startTy.value = ty.value; })
+    .onStart(() => {
+      startScale.value = scale.value;
+      startTx.value = tx.value;
+      startTy.value = ty.value;
+    })
     .onUpdate((e) => {
-      const ns = Math.min(Math.max(startScale.value * e.scale, MIN_ZOOM), MAX_ZOOM);
-      const fx = e.focalX - containerW.value / 2;
-      const fy = e.focalY - containerH.value / 2;
+      const ns = Math.min(
+        Math.max(startScale.value * e.scale, MIN_ZOOM),
+        MAX_ZOOM,
+      );
+      const fx = e.focalX - viewport.width / 2;
+      const fy = e.focalY - viewport.height / 2;
       const ratio = ns / startScale.value;
       tx.value = fx - (fx - startTx.value) * ratio;
       ty.value = fy - (fy - startTy.value) * ratio;
@@ -370,7 +337,6 @@ export default function MapScreen() {
 
   const composed = Gesture.Simultaneous(pan, pinch);
 
-  /* ── Animated transform style ─────────────────────────────────── */
   const contentStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: tx.value },
@@ -379,289 +345,372 @@ export default function MapScreen() {
     ],
   }));
 
-  /* ── Zoom controls ────────────────────────────────────────────── */
   const zoomBy = useCallback(
     (factor: number) => {
-      const cw = containerW.value;
-      const ch = containerH.value;
-      if (!cw || !ch) return;
-      const target = Math.min(Math.max(scale.value * factor, MIN_ZOOM), MAX_ZOOM);
+      const vw = viewport.width;
+      const vh = viewport.height;
+      if (!vw || !vh) return;
+      const target = Math.min(
+        Math.max(scale.value * factor, MIN_ZOOM),
+        MAX_ZOOM,
+      );
       const ratio = target / scale.value;
-      tx.value = withSpring((cw / 2) - (cw / 2 - tx.value) * ratio, SPRING);
-      ty.value = withSpring((ch / 2) - (ch / 2 - ty.value) * ratio, SPRING);
+      tx.value = withSpring(vw / 2 - (vw / 2 - tx.value) * ratio, SPRING);
+      ty.value = withSpring(vh / 2 - (vh / 2 - ty.value) * ratio, SPRING);
       scale.value = withSpring(target, SPRING);
     },
-    [containerH, containerW, scale, tx, ty],
+    [viewport.width, viewport.height, scale, tx, ty],
   );
 
-  /* ── Theme colours ─────────────────────────────────────────────── */
-  const pageBg = isDark ? palette.gray[950] : "#e5e7eb";
-  const pillBg = isDark ? "rgba(20,20,30,0.85)" : "rgba(255,255,255,0.92)";
-  const cardBorder = isDark ? palette.gray[800] : palette.gray[200];
-  const textPrimary = isDark ? "#ffffff" : palette.gray[900];
+  const handleRobotPress = useCallback(
+    (code: string) => {
+      router.push(`/staff/robot-detail?code=${encodeURIComponent(code)}` as any);
+    },
+    [router],
+  );
 
+  const pageBg = isDark ? palette.gray[950] : "#f0f2f5";
+  const textPrimary = isDark ? "#ffffff" : palette.gray[900];
   const robotList = robots ?? [];
-  const mapError_ = mapError ?? robotsError;
 
   return (
     <View style={[styles.page, { backgroundColor: pageBg }]}>
-      {/* ── Map viewport ─────────────────────────────────────── */}
+      {/* ── 1. Interactive Map Viewport ── */}
       <GestureDetector gesture={composed}>
-        <Animated.View
-          style={styles.viewport}
-          onLayout={onContainerLayout}
-          collapsable={false}
-        >
-          <Animated.View
-            style={[styles.canvasContainer, { width: projection.widthPx, height: projection.heightPx }, contentStyle]}
-          >
-            <MapCanvas
-              floorplan={floorplan}
-              robots={robotList}
-              projection={projection}
-              highlightedCode={highlightedCode}
-              onRobotPress={handleRobotPress}
-            />
-          </Animated.View>
+        <Animated.View style={[styles.viewport, contentStyle]}>
+          <MapCanvas
+            robots={robotList}
+            projection={projection}
+            highlightedCode={null}
+            selectedZoneId={selectedZone?.id}
+            onRobotPress={handleRobotPress}
+            onZonePress={(z) => setSelectedZone(z)}
+            showLabels={true}
+            showDimensions={true}
+            width={projection.widthPx}
+            height={projection.heightPx}
+          />
         </Animated.View>
       </GestureDetector>
 
-      {/* ── Stale-map banner (shown when /maps/latest disagrees with /maps/stats) ── */}
-      {stale ? (
-        <View style={styles.staleBannerWrap} pointerEvents="none">
-          <View style={styles.staleBanner}>
-            <Text style={styles.staleBannerText}>
-              ⚠ Bản đồ có thể chưa phải mới nhất — BE API đang trả về sai.
-            </Text>
-          </View>
-        </View>
-      ) : null}
-
-      {/* ── Status legend (collapsible card, top-left) ───────────── */}
-      <StatusLegendCard isDark={isDark} />
-
-      {/* ── Top bar ──────────────────────────────────────────────── */}
-      <View style={styles.topBar} pointerEvents="box-none">
+      {/* ── 2. Top Bar Navigation ── */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
+          style={[styles.topBtn, { backgroundColor: isDark ? palette.gray[800] : "#fff" }]}
           onPress={() => router.back()}
-          style={[styles.iconBtn, { backgroundColor: pillBg, borderColor: cardBorder }]}
-          activeOpacity={0.8}
         >
-          <ChevronLeftIcon size={18} color={textPrimary} />
+          <ChevronLeftIcon size={20} color={textPrimary} />
         </TouchableOpacity>
 
-        <View style={[styles.titlePill, { backgroundColor: pillBg, borderColor: cardBorder }]}>
+        <View style={[styles.titleBox, { backgroundColor: isDark ? palette.gray[800] : "#fff" }]}>
           <Text style={[styles.titleText, { color: textPrimary }]} numberOfLines={1}>
-            {floorplan
-              ? `${floorplan.mapName} · ${floorplan.nodes.length} node · ${floorplan.edges.length} cạnh`
-              : "Bản đồ cửa hàng"}
+            Sơ đồ Cửa Hàng (3m × 3m)
           </Text>
         </View>
 
+        {/* Legend Button */}
         <TouchableOpacity
+          style={[styles.topBtn, { backgroundColor: isDark ? palette.gray[800] : "#fff" }]}
+          onPress={() => setLegendVisible(true)}
+        >
+          <InfoIcon size={18} color={palette.violet[500]} />
+        </TouchableOpacity>
+
+        {/* Recenter Button */}
+        <TouchableOpacity
+          style={[styles.topBtn, { backgroundColor: isDark ? palette.gray[800] : "#fff" }]}
           onPress={fitToScreen}
-          style={[styles.iconBtn, { backgroundColor: pillBg, borderColor: cardBorder }]}
-          activeOpacity={0.8}
         >
-          <RefreshIcon size={16} color={textPrimary} />
+          <CrosshairIcon size={18} color={palette.violet[500]} />
         </TouchableOpacity>
       </View>
 
-      {/* ── Zoom controls (right) ───────────────────────────────── */}
-      <View style={styles.zoomGroup} pointerEvents="box-none">
+      {/* ── 3. Zoom Controls (Floating Right) ── */}
+      <View style={[styles.zoomControls, { bottom: 210 + insets.bottom }]}>
         <TouchableOpacity
-          onPress={() => zoomBy(1.25)}
-          style={[styles.iconBtn, { backgroundColor: pillBg, borderColor: cardBorder }]}
-          activeOpacity={0.8}
+          style={[styles.zoomBtn, { backgroundColor: isDark ? palette.gray[800] : "#fff" }]}
+          onPress={() => zoomBy(1.4)}
         >
-          <PlusIcon size={18} color={textPrimary} />
+          <PlusIcon size={20} color={textPrimary} />
         </TouchableOpacity>
-        <View style={[styles.zoomDivider, { backgroundColor: isDark ? palette.gray[700] : palette.gray[200] }]} />
         <TouchableOpacity
-          onPress={() => zoomBy(1 / 1.25)}
-          style={[styles.iconBtn, { backgroundColor: pillBg, borderColor: cardBorder }]}
-          activeOpacity={0.8}
+          style={[styles.zoomBtn, { backgroundColor: isDark ? palette.gray[800] : "#fff" }]}
+          onPress={() => zoomBy(1 / 1.4)}
         >
-          <Text style={[styles.zoomOutText, { color: textPrimary }]}>−</Text>
+          <Text style={[styles.zoomBtnText, { color: textPrimary }]}>−</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── Zoom % indicator ────────────────────────────────────── */}
-      <View style={styles.zoomIndicatorWrap} pointerEvents="none">
-        <ZoomIndicator scale={scale} />
+      {/* Zoom Level Indicator */}
+      <ZoomIndicator scale={scale} />
+
+      {/* ── 4. Bottom Sheet (Robot List & Zone Overview) ── */}
+      <View
+        style={[
+          styles.bottomSheet,
+          { backgroundColor: isDark ? palette.gray[900] : "#ffffff" },
+        ]}
+      >
+        <View style={styles.handleContainer}>
+          <View
+            style={[
+              styles.handle,
+              { backgroundColor: isDark ? palette.gray[700] : palette.gray[300] },
+            ]}
+          />
+        </View>
+
+        <View style={styles.sheetHeader}>
+          <View style={styles.sheetTitleRow}>
+            <BotIcon size={20} color={palette.violet[500]} />
+            <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+              Đội Robot ({robotList.length})
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setBottomSheetExpanded(!bottomSheetExpanded)}
+            style={[
+              styles.expandBtn,
+              { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] },
+            ]}
+          >
+            <Text style={[styles.expandBtnText, { color: palette.violet[500] }]}>
+              {bottomSheetExpanded ? "Thu gọn" : "Xem tất cả"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {bottomSheetExpanded && (
+          <ScrollView
+            style={styles.robotList}
+            contentContainerStyle={styles.robotListContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={palette.violet[500]}
+              />
+            }
+          >
+            {robotList.map((r) => (
+              <RobotRow
+                key={r.robotCode}
+                robot={r}
+                onPress={handleRobotPress}
+                isDark={isDark}
+              />
+            ))}
+          </ScrollView>
+        )}
       </View>
 
-      {/* ── Robot list bottom sheet ─────────────────────────────── */}
-      <RobotListSheet
-        robots={robotList}
-        onPress={handleRobotPress}
-        onRefresh={reloadRobots}
-        refreshing={refreshing}
-        error={mapError_}
+      {/* Legend Modal */}
+      <MapLegendModal
+        visible={legendVisible}
+        onClose={() => setLegendVisible(false)}
+        isDark={isDark}
+      />
+
+      {/* Zone Detail Inspector Modal */}
+      <ZoneDetailModal
+        zone={selectedZone}
+        onClose={() => setSelectedZone(null)}
         isDark={isDark}
       />
     </View>
   );
 }
 
-/* ─── Styles ─────────────────────────────────────────────────────── */
-
 const styles = StyleSheet.create({
   page: { flex: 1 },
-
-  /* Map viewport */
-  viewport: { flex: 1, overflow: "hidden" },
-  canvasContainer: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-  },
-
-  /* Status legend (top-left, where live pill used to sit) */
-  legendWrap: { position: "absolute", top: 70, left: 16, zIndex: 20 },
-  legendCard: {
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  legendTitle: { fontSize: 11, fontWeight: "800" },
-  legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLabel: { fontSize: 11, fontWeight: "600" },
-
-  /* Stale-map banner — sits below the top bar and the legend card */
-  staleBannerWrap: { position: "absolute", top: 102, left: 16, right: 16, zIndex: 30 },
-  staleBanner: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "rgba(245,158,11,0.95)",
-    borderWidth: 1,
-    borderColor: "#b45309",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  staleBannerText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
+  viewport: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
 
   topBar: {
     position: "absolute",
-    top: 16,
-    left: 16,
-    right: 16,
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 8,
   },
-  titlePill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    flex: 1,
-    alignItems: "center",
-  },
-  titleText: { fontSize: 13, fontWeight: "800" },
-  iconBtn: {
+  topBtn: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  zoomOutText: { fontSize: 20, fontWeight: "800", lineHeight: 22 },
-
-  /* Zoom group */
-  zoomGroup: {
-    position: "absolute",
-    right: 16,
-    top: 110,
-    alignItems: "stretch",
-    borderRadius: 12,
-    overflow: "hidden",
-    gap: 0,
-    zIndex: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  zoomDivider: { height: 1, width: "100%" },
+  titleBox: {
+    flex: 1,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  titleText: { fontSize: 14, fontWeight: "800" },
 
-  /* Zoom indicator */
-  zoomIndicatorWrap: {
+  zoomControls: { position: "absolute", right: 16, gap: 8 },
+  zoomBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  zoomBtnText: { fontSize: 24, fontWeight: "700", marginTop: -2 },
+
+  zoomPill: {
     position: "absolute",
-    top: 64,
+    bottom: 220,
+    alignSelf: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+  },
+  zoomPillText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+
+  bottomSheet: {
+    position: "absolute",
+    bottom: 0,
     left: 0,
     right: 0,
-    alignItems: "center",
-    zIndex: 15,
-  },
-  zoomPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  zoomPillText: { color: "#ffffff", fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
-
-  /* Bottom sheet */
-  sheet: {
-    position: "absolute",
-    left: 12,
-    right: 12,
-    bottom: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 12,
-    gap: 8,
-    maxHeight: 320,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 10,
   },
+  handleContainer: { alignItems: "center", paddingVertical: 10 },
+  handle: { width: 40, height: 4, borderRadius: 2 },
+
   sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginBottom: 8,
   },
-  sheetTitle: { fontSize: 13, fontWeight: "800" },
-  sheetToggle: { fontSize: 12, fontWeight: "700" },
-  sheetError: { fontSize: 11, fontWeight: "600" },
-  sheetCenter: { paddingVertical: 20, alignItems: "center", justifyContent: "center" },
-  robotScroll: { maxHeight: 200 },
-  robotScrollContent: { gap: 6 },
+  sheetTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sheetTitle: { fontSize: 17, fontWeight: "800" },
+  expandBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  expandBtnText: { fontSize: 13, fontWeight: "700" },
 
-  /* Robot row */
+  robotList: { maxHeight: 280 },
+  robotListContent: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
   robotRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 14,
+    gap: 12,
   },
-  robotAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
+  robotIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  robotId: { fontSize: 12, fontWeight: "800" },
-  robotTask: { fontSize: 11 },
-  batteryText: { fontSize: 11, fontWeight: "700" },
+  robotInfo: { flex: 1 },
+  robotCode: { fontSize: 15, fontWeight: "800" },
+  robotStatus: { fontSize: 12, marginTop: 2 },
+  robotBattery: { paddingHorizontal: 8 },
+  batteryText: { fontSize: 13, fontWeight: "800" },
+
+  /* Modal Overlay */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  legendModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  legendHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  legendTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  legendTitle: { fontSize: 18, fontWeight: "800" },
+  closeBtn: { padding: 4 },
+  legendList: { gap: 12 },
+  legendItemRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  symbolBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  symbolText: { fontSize: 18, fontWeight: "800" },
+  legendTextWrap: { flex: 1 },
+  legendItemLabel: { fontSize: 14, fontWeight: "700" },
+  legendItemDesc: { fontSize: 12, marginTop: 2 },
+
+  zoneModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 20,
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  zoneHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  zoneBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  zoneBadgeText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  zoneName: { fontSize: 18, fontWeight: "800" },
+  zoneCategory: { fontSize: 13, fontWeight: "700" },
+  zoneDesc: { fontSize: 13, lineHeight: 18 },
+  zoneMetaRow: { flexDirection: "row", gap: 10, marginTop: 8 },
+  zoneMetaPill: { flex: 1, padding: 10, borderRadius: 10, gap: 2 },
+  zoneMetaLabel: { fontSize: 11, fontWeight: "600" },
+  zoneMetaVal: { fontSize: 14, fontWeight: "800" },
 });

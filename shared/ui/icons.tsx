@@ -270,3 +270,29 @@ export function RefreshIcon({ size = 20, color }: IconProps) {
     </Svg>
   );
 }
+
+/* ─── Info ────────────────────────────────────────────────────────────── */
+export function InfoIcon({ size = 20, color }: IconProps) {
+  const c = color ?? palette.gray[500];
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="12" r="10" stroke={c} strokeWidth="2" />
+      <Line x1="12" y1="16" x2="12" y2="12" stroke={c} strokeWidth="2" strokeLinecap="round" />
+      <Line x1="12" y1="8" x2="12.01" y2="8" stroke={c} strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/* ─── Crosshair / Target / Recenter ────────────────────────────────────── */
+export function CrosshairIcon({ size = 20, color }: IconProps) {
+  const c = color ?? palette.gray[500];
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="12" r="8" stroke={c} strokeWidth="2" />
+      <Line x1="12" y1="2" x2="12" y2="6" stroke={c} strokeWidth="2" strokeLinecap="round" />
+      <Line x1="12" y1="18" x2="12" y2="22" stroke={c} strokeWidth="2" strokeLinecap="round" />
+      <Line x1="2" y1="12" x2="6" y2="12" stroke={c} strokeWidth="2" strokeLinecap="round" />
+      <Line x1="18" y1="12" x2="22" y2="12" stroke={c} strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}

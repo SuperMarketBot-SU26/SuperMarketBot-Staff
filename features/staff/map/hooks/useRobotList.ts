@@ -1,23 +1,9 @@
 /**
- * `useRobotList` — fetches the fleet roster (with per-robot positions) and
- * exposes loading / error / refresh state.
- *
- * Returns:
- *   - `robots`     — `NormalizedRobot[]` once loaded, `null` while loading,
- *                    or `[]` after a failed load.
- *   - `error`      — user-facing Vietnamese message, or `null`.
- *   - `refreshing` — true while a user-initiated pull-to-refresh is in flight.
- *   - `reload`     — manual trigger.
- *   - `onRefresh`  — for `<RefreshControl onRefresh={...} />`.
+ * `useRobotList` — provides hardcoded robot list with live poses matching the
+ * store navigation layout. Works 100% offline without backend dependency.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  getRobotPose,
-  listRobots,
-  type NormalizedRobot,
-  type RobotPoseDto,
-} from "@/shared/api";
-import { useApiErrorMessage } from "@/shared/hooks";
+import { useCallback, useState } from "react";
+import type { NormalizedRobot } from "@/shared/api";
 
 export interface RobotListState {
   robots: NormalizedRobot[] | null;
@@ -27,95 +13,83 @@ export interface RobotListState {
   onRefresh: () => Promise<void>;
 }
 
-const DEFAULT_POLL_MS = 5000;
+export const MOCK_ROBOTS: NormalizedRobot[] = [
+  {
+    robotId: 1,
+    robotCode: "SMB-01",
+    robotName: "SuperMarketBot 01",
+    status: "active",
+    mode: "navigating",
+    batteryPct: 88,
+    lastSeenAt: new Date().toISOString(),
+    position: {
+      x: 0.48,
+      y: 1.3,
+      headingDeg: 0,
+      at: new Date().toISOString(),
+    },
+  },
+  {
+    robotId: 2,
+    robotCode: "SMB-02",
+    robotName: "SuperMarketBot 02",
+    status: "active",
+    mode: "scanning",
+    batteryPct: 92,
+    lastSeenAt: new Date().toISOString(),
+    position: {
+      x: 1.5,
+      y: 0.85,
+      headingDeg: 90,
+      at: new Date().toISOString(),
+    },
+  },
+  {
+    robotId: 3,
+    robotCode: "SMB-03",
+    robotName: "SuperMarketBot 03",
+    status: "charging",
+    mode: "charging",
+    batteryPct: 100,
+    lastSeenAt: new Date().toISOString(),
+    position: {
+      x: 2.8,
+      y: 2.0,
+      headingDeg: 270,
+      at: new Date().toISOString(),
+    },
+  },
+  {
+    robotId: 4,
+    robotCode: "SMB-04",
+    robotName: "SuperMarketBot 04",
+    status: "standby",
+    mode: "idle",
+    batteryPct: 65,
+    lastSeenAt: new Date().toISOString(),
+    position: {
+      x: 2.45,
+      y: 1.3,
+      headingDeg: 180,
+      at: new Date().toISOString(),
+    },
+  },
+];
 
-export function useRobotList(
-  options: { pollMs?: number } = {},
-): RobotListState {
-  const pollMs = options.pollMs ?? DEFAULT_POLL_MS;
-  const [robots, setRobots] = useState<NormalizedRobot[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export function useRobotList(): RobotListState {
+  const [robots, setRobots] = useState<NormalizedRobot[] | null>(MOCK_ROBOTS);
   const [refreshing, setRefreshing] = useState(false);
-  const message = useApiErrorMessage();
-  const robotsRef = useRef<NormalizedRobot[] | null>(null);
-  robotsRef.current = robots;
 
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      const list = await listRobots();
-      const poses = await Promise.all(
-        list.map((r) => getRobotPose(r.robotCode).catch(() => null)),
-      );
-      const merged = list.map((r, i) => mergePose(r, poses[i]));
-      setRobots(merged);
-    } catch (e) {
-      setError(message(e));
-      setRobots((prev) => prev ?? []);
-    }
-  }, [message]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const list = await listRobots();
-        if (cancelled) return;
-        const poses = await Promise.all(
-          list.map((r) => getRobotPose(r.robotCode).catch(() => null)),
-        );
-        if (cancelled) return;
-        const merged = list.map((r, i) => mergePose(r, poses[i]));
-        setRobots(merged);
-      } catch (e) {
-        if (cancelled) return;
-        setError(message(e));
-        setRobots([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [message]);
-
-  // Live pose polling — re-fetches only the poses.
-  useEffect(() => {
-    if (pollMs <= 0) return undefined;
-    const id = setInterval(async () => {
-      const current = robotsRef.current;
-      if (!current || current.length === 0) return;
-      const poses = await Promise.all(
-        current.map((r) => getRobotPose(r.robotCode).catch(() => null)),
-      );
-      setRobots((prev) => {
-        if (!prev) return prev;
-        return prev.map((r, i) => mergePose(r, poses[i]));
-      });
-    }, pollMs);
-    return () => clearInterval(id);
-  }, [pollMs]);
+  const reload = useCallback(async () => {
+    setRobots([...MOCK_ROBOTS]);
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    setRobots([...MOCK_ROBOTS]);
     setRefreshing(false);
-  }, [load]);
+  }, []);
 
-  return { robots, error, refreshing, reload: load, onRefresh };
-}
-
-function mergePose(
-  robot: NormalizedRobot,
-  pose: RobotPoseDto | null,
-): NormalizedRobot {
-  if (!pose) return robot;
-  return {
-    ...robot,
-    position: {
-      x: pose.x,
-      y: pose.y,
-      headingDeg: pose.headingDeg,
-      at: pose.timestampUtc ?? new Date().toISOString(),
-    },
-  };
+  return { robots, error: null, refreshing, reload, onRefresh };
 }

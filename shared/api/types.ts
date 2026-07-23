@@ -150,19 +150,25 @@ export interface StaffTask {
 }
 
 // ─── Map / Floorplan ───────────────────────────────────────────────────────
-// Mirrors `MapFloorplanDto` from
-//   BE: SuperMarketBot-BE/src/SmartMarketBot.Application/Models/Maps/MapSyncDtos.cs
-// returned by `GET /api/v1/maps/latest?floorId=N`.
-// Only the fields the Staff app renders are typed; add more when needed.
+// Cấu trúc response từ BE: GET /api/v1/maps/latest
+// {
+//   "mapId": 1,
+//   "floorId": 1,
+//   "mapName": "Supermarket_3x3m_InAisle",
+//   "widthMeters": 3.0,
+//   "heightMeters": 3.0,
+//   "floorplanImageUrl": null,
+//   "nodes": [...],
+//   "edges": [...],
+//   "semanticObjects": []
+// }
 
 export interface MapNodeDto {
   nodeId: number | null;
   nodeName: string;
-  /** Map-unit x — same units as the FE's MAP_WIDTH in `features/staff/fleet/lib/map.ts`. */
   xCoord: number;
-  /** Map-unit y — same units as the FE's MAP_HEIGHT. */
   yCoord: number;
-  /** "intersection" | "aisle" | "shelf" | … */
+  /** "Corridor" | "CHECKOUT" | "Dock" | "POI" | ... */
   nodeType: string;
   isBlocked: boolean;
 }
@@ -177,7 +183,6 @@ export interface MapEdgeDto {
 
 export interface MapSemanticObjectDto {
   objectId: number | null;
-  /** "shelf" | "zone" | "aisle" | … */
   objectType: string;
   xMin: number;
   yMin: number;
@@ -193,24 +198,13 @@ export interface MapFloorplanDto {
   mapId: number;
   floorId: number;
   mapName: string;
-  /** ISO 8601. */
-  createdAt: string;
   /** Absolute or app-relative URL for the floorplan background image. */
   floorplanImageUrl: string | null;
-  /** Floor width in meters (BE-supplied; used as a fallback before the image's
-   * natural size is loaded). Matches FE's `widthMeters` in `FleetMap.jsx`. */
+  /** Floor width in meters. */
   widthMeters: number;
-  /** Floor height in meters (BE-supplied; used as a fallback). */
+  /** Floor height in meters. */
   heightMeters: number;
   nodes: MapNodeDto[];
   edges: MapEdgeDto[];
   semanticObjects: MapSemanticObjectDto[];
-}
-
-export interface MapSyncStatsDto {
-  totalNodes: number;
-  totalEdges: number;
-  totalSemanticObjects: number;
-  lastSyncedAt: string | null;
-  mapId: number | null;
 }
