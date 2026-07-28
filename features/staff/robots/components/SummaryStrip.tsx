@@ -1,5 +1,6 @@
 /**
- * SummaryStrip — Modern status summary with animated progress rings.
+ * SummaryStrip — Sleek status metrics strip for Staff app.
+ * Synchronized with Admin FE Design System.
  */
 import { StyleSheet, Text, View } from "react-native";
 import { DEVICE, palette, useIsDark } from "@/shared/theme";
@@ -17,41 +18,36 @@ export function SummaryStrip({ robots }: SummaryStripProps) {
   const error = robots.filter((r) => r.status === "error").length;
 
   const items = [
-    { label: "Đang chạy", count: active, color: "#22c55e", bgColor: isDark ? "rgba(34,197,94,0.15)" : "rgba(34,197,94,0.1)" },
-    { label: "Chờ", count: standby, color: "#3b82f6", bgColor: isDark ? "rgba(59,130,246,0.15)" : "rgba(59,130,246,0.1)" },
-    { label: "Sạc", count: charging, color: "#f59e0b", bgColor: isDark ? "rgba(245,158,11,0.15)" : "rgba(245,158,11,0.1)" },
-    { label: "Lỗi", count: error, color: "#ef4444", bgColor: isDark ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.1)" },
+    { label: "Đang Chạy", count: active, color: "#16a34a", bgColor: isDark ? "rgba(34,197,94,0.15)" : "#dcfce7" },
+    { label: "Chờ Sẵn", count: standby, color: "#2563eb", bgColor: isDark ? "rgba(59,130,246,0.15)" : "#dbeafe" },
+    { label: "Đang Sạc", count: charging, color: "#d97706", bgColor: isDark ? "rgba(245,158,11,0.15)" : "#fef3c7" },
+    { label: "Báo Lỗi", count: error, color: "#dc2626", bgColor: isDark ? "rgba(239,68,68,0.15)" : "#fee2e2" },
   ];
 
   return (
-    <View style={[
-      styles.container,
-      {
-        backgroundColor: isDark ? palette.gray[800] : "#ffffff",
-        borderColor: isDark ? palette.gray[700] : palette.gray[200],
-      }
-    ]}>
-      {items.map((item, index) => (
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: isDark ? "#0f172a" : "#ffffff",
+          borderColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(20, 83, 45, 0.12)",
+        },
+      ]}
+    >
+      {items.map((item) => (
         <View key={item.label} style={styles.item}>
-          <View style={[
-            styles.iconContainer,
-            { backgroundColor: item.bgColor }
-          ]}>
-            <View style={[
-              styles.statusDot,
-              { backgroundColor: item.color }
-            ]} />
+          <View style={[styles.iconBadge, { backgroundColor: item.bgColor }]}>
+            <View style={[styles.statusDot, { backgroundColor: item.color }]} />
           </View>
-          <Text style={[
-            styles.count,
-            { color: item.color }
-          ]}>
+          <Text style={[styles.count, { color: item.color }]}>
             {item.count}
           </Text>
-          <Text style={[
-            styles.label,
-            { color: isDark ? palette.gray[400] : palette.gray[500] }
-          ]}>
+          <Text
+            style={[
+              styles.label,
+              { color: isDark ? palette.slate[400] : "#4a5a52" },
+            ]}
+          >
             {item.label}
           </Text>
         </View>
@@ -63,41 +59,41 @@ export function SummaryStrip({ robots }: SummaryStripProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 8,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    gap: 0,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   item: {
     flex: 1,
     alignItems: "center",
-    gap: 6,
+    gap: 4,
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  iconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   statusDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   count: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
+    letterSpacing: -0.5,
   },
   label: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 10,
+    fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },

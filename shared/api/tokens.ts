@@ -1,16 +1,9 @@
 /**
- * Token storage wrapper around `expo-secure-store`.
+ * Token storage wrapper around `expo-secure-store` with Web fallback (`localStorage`).
  *
- * We use SecureStore (keychain / Android keystore) instead of AsyncStorage
- * because the refresh token is a long-lived credential.
- *
- * The module never throws on storage failures — read returns null, write
- * is best-effort. The caller treats "no token" as "logged out".
- *
- * An in-memory cache is held for synchronous reads inside the same tick;
- * SecureStore itself is async and we don't want every API call to wait on
- * a SecureStore round-trip on the hot path.
+ * Safe on both Mobile (iOS/Android Native) and Web browsers (`react-native-web`).
  */
+import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import {
   TOKEN_KEY_ACCESS,
@@ -28,17 +21,61 @@ export interface StoredTokens {
 let cache: StoredTokens | null | undefined = undefined;
 let inflightRead: Promise<StoredTokens | null> | null = null;
 
+const isWeb = Platform.OS === "web";
+
+async function safeGetItem(key: string): Promise<string | null> {
+  try {
+    if (isWeb) {
+      if (typeof window !== "undefined" && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+      return null;
+    }
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    return null;
+  }
+}
+
+async function safeSetItem(key: string, value: string): Promise<void> {
+  try {
+    if (isWeb) {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(key, value);
+      }
+      return;
+    }
+    await SecureStore.setItemAsync(key, value);
+  } catch {
+    // ignore storage write errors
+  }
+}
+
+async function safeDeleteItem(key: string): Promise<void> {
+  try {
+    if (isWeb) {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+      return;
+    }
+    await SecureStore.deleteItemAsync(key);
+  } catch {
+    // ignore storage delete errors
+  }
+}
+
 async function readFromStore(): Promise<StoredTokens | null> {
   const [access, refresh, expiresAt] = await Promise.all([
-    SecureStore.getItemAsync(TOKEN_KEY_ACCESS),
-    SecureStore.getItemAsync(TOKEN_KEY_REFRESH),
-    SecureStore.getItemAsync(TOKEN_KEY_EXPIRES),
+    safeGetItem(TOKEN_KEY_ACCESS),
+    safeGetItem(TOKEN_KEY_REFRESH),
+    safeGetItem(TOKEN_KEY_EXPIRES),
   ]);
   if (!access || !refresh || !expiresAt) return null;
   return { access, refresh, expiresAt };
 }
 
-/** Returns cached stored tokens, reading from SecureStore on first access. */
+/** Returns cached stored tokens, reading from SecureStore/localStorage on first access. */
 export async function getTokens(): Promise<StoredTokens | null> {
   if (cache !== undefined) return cache;
   if (!inflightRead) {
@@ -63,17 +100,17 @@ export async function getRefresh(): Promise<string | null> {
 export async function save(tokens: StoredTokens): Promise<void> {
   cache = tokens;
   await Promise.all([
-    SecureStore.setItemAsync(TOKEN_KEY_ACCESS, tokens.access),
-    SecureStore.setItemAsync(TOKEN_KEY_REFRESH, tokens.refresh),
-    SecureStore.setItemAsync(TOKEN_KEY_EXPIRES, tokens.expiresAt),
+    safeSetItem(TOKEN_KEY_ACCESS, tokens.access),
+    safeSetItem(TOKEN_KEY_REFRESH, tokens.refresh),
+    safeSetItem(TOKEN_KEY_EXPIRES, tokens.expiresAt),
   ]);
 }
 
 export async function clear(): Promise<void> {
   cache = null;
   await Promise.all([
-    SecureStore.deleteItemAsync(TOKEN_KEY_ACCESS),
-    SecureStore.deleteItemAsync(TOKEN_KEY_REFRESH),
-    SecureStore.deleteItemAsync(TOKEN_KEY_EXPIRES),
+    safeDeleteItem(TOKEN_KEY_ACCESS),
+    safeDeleteItem(TOKEN_KEY_REFRESH),
+    safeDeleteItem(TOKEN_KEY_EXPIRES),
   ]);
 }

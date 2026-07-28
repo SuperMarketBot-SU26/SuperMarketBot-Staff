@@ -58,14 +58,14 @@ export function MapCanvas({
 }: MapCanvasProps) {
   const isDark = useIsDark();
 
-  /* Theme Styling */
-  const gridLineColor = isDark ? "rgba(255,255,255,0.06)" : "#e2e8f0";
-  const gridMajorColor = isDark ? "rgba(255,255,255,0.12)" : "#cbd5e1";
-  const wallStroke = isDark ? "#94a3b8" : "#0f172a";
-  const dimColor = isDark ? "#94a3b8" : "#475569";
-  const pathLineColor = isDark ? "#94a3b8" : "#0f172a";
-  const cornerDotFill = isDark ? "#ffffff" : "#000000";
-  const canvasBg = isDark ? "#090d16" : "#ffffff";
+  /* Theme Styling — Pure White Card Integration */
+  const gridLineColor = "rgba(20,83,45,0.08)";
+  const gridMajorColor = "rgba(20,83,45,0.18)";
+  const wallStroke = "#14532d";
+  const dimColor = "#4a5a52";
+  const pathLineColor = "#16a34a";
+  const cornerDotFill = "#15803d";
+  const canvasBg = "#ffffff";
 
   const vbX = showDimensions ? -0.4 : -0.1;
   const vbY = showDimensions ? -0.4 : -0.1;

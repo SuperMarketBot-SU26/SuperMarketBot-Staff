@@ -1,26 +1,15 @@
 /**
  * StaffLayout — top-level layout for `/staff/*` routes.
- *
- * Owns:
- *   - the phone-frame outer View (so the same app can be embedded
- *     inside a wider canvas later without re-doing safe-area math)
- *   - the staff header (sidebar toggle + dark-mode toggle)
- *   - the slide-in sidebar (nav + logout)
- *   - the `<Slot />` for child routes
- *
- * Logout goes through AuthContext; the root layout redirects to /login
- * once auth status flips to "unauthenticated".
+ * 100% Pure White & Mint Slate Theme (Matching Admin FE).
  */
 import { useCallback, useState } from "react";
 import {
-  Dimensions,
   StatusBar,
   StyleSheet,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Slot, useRouter } from "expo-router";
-import { palette, useIsDark } from "@/shared/theme";
 import { useAuth } from "@/features/auth";
 import { StaffHeader } from "./components/StaffHeader";
 import { StaffSidebar } from "./components/StaffSidebar";
@@ -30,7 +19,6 @@ interface StaffLayoutProps {
 }
 
 export function StaffLayout({ children }: StaffLayoutProps) {
-  const isDark = useIsDark();
   const { logout } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -39,7 +27,6 @@ export function StaffLayout({ children }: StaffLayoutProps) {
     try {
       await logout();
     } finally {
-      // AuthProvider flips status → root layout redirects to /login.
       router.replace("/login" as any);
     }
   }, [logout, router]);
@@ -48,16 +35,16 @@ export function StaffLayout({ children }: StaffLayoutProps) {
     <View
       style={[
         styles.wrapper,
-        { backgroundColor: isDark ? palette.gray[950] : palette.gray[100] },
+        { backgroundColor: "#f7faf7" },
       ]}
     >
       <SafeAreaView
-        style={[styles.phoneFrame, { backgroundColor: isDark ? palette.gray[900] : "#ffffff" }]}
+        style={[styles.phoneFrame, { backgroundColor: "#f7faf7" }]}
         edges={["top", "left", "right"]}
       >
         <StatusBar
-          barStyle={isDark ? "light-content" : "dark-content"}
-          backgroundColor={isDark ? palette.gray[900] : "#ffffff"}
+          barStyle="dark-content"
+          backgroundColor="#ffffff"
         />
 
         <StaffHeader
@@ -72,7 +59,7 @@ export function StaffLayout({ children }: StaffLayoutProps) {
         <StaffSidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
-          isDark={isDark}
+          isDark={false}
           onLogout={handleLogout}
         />
       </SafeAreaView>
@@ -80,23 +67,16 @@ export function StaffLayout({ children }: StaffLayoutProps) {
   );
 }
 
-const { width: SCREEN_W } = Dimensions.get("window");
-
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     alignItems: "center",
     justifyContent: "flex-start",
+    width: "100%",
   },
   phoneFrame: {
-    width: SCREEN_W,
-    minHeight: Dimensions.get("window").height,
+    width: "100%",
     flex: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
   },
   content: { flex: 1 },
 });

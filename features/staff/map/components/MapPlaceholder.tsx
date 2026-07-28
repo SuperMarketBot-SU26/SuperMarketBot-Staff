@@ -1,8 +1,9 @@
 /**
  * MapPlaceholder — Live interactive store floorplan preview card on FleetScreen.
+ * Pure White container with seamless background.
  */
 import { StyleSheet, View } from "react-native";
-import { DEVICE, palette, useIsDark } from "@/shared/theme";
+import { DEVICE } from "@/shared/theme";
 import { type NormalizedRobot, type MapFloorplanDto } from "@/shared/api";
 import { MapCanvas } from "./MapCanvas";
 import { makeProjection } from "../lib/map";
@@ -16,10 +17,9 @@ interface MapPlaceholderProps {
 
 export function MapPlaceholder({
   robots,
-  height = 220,
+  height = 280,
 }: MapPlaceholderProps) {
-  const isDark = useIsDark();
-  const projection = makeProjection(null, 380, height);
+  const projection = makeProjection(null, 450, height);
 
   return (
     <View
@@ -27,16 +27,16 @@ export function MapPlaceholder({
         styles.container,
         {
           height,
-          backgroundColor: isDark ? "#090d16" : "#f8fafc",
-          borderColor: isDark ? palette.gray[700] : palette.gray[200],
+          backgroundColor: "#ffffff",
+          borderColor: "rgba(20,83,45,0.12)",
         },
       ]}
     >
       <MapCanvas
         robots={robots}
         projection={projection}
-        showLabels={false}
-        showDimensions={true}
+        showLabels={true}
+        showDimensions={false}
         width="100%"
         height="100%"
       />
@@ -51,5 +51,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
+    width: "100%",
   },
 });

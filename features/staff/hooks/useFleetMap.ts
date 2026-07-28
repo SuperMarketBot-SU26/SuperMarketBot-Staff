@@ -1,19 +1,8 @@
 /**
- * `useFleetMap` — fetches the latest floorplan (nodes + edges + semantic objects)
- * and exposes loading / error / refresh state.
- *
- * Shape contract:
- *   - `floorplan` — MapFloorplanDto | null while loading, or null after failure.
- *   - `error`     — user-facing Vietnamese message, or null.
- *   - `refreshing` — true while a user-initiated reload is in flight.
- *   - `reload`     — manual trigger.
- *   - `onRefresh`  — for `<RefreshControl onRefresh={...} />`.
- *
- * Uses: GET /api/v1/maps/latest (no query params needed)
+ * `useFleetMap` — Real API hook for floorplan metadata from Backend (GET /api/v1/maps/latest).
  */
 import { useCallback, useEffect, useState } from "react";
-import { getLatestMap } from "@/shared/api";
-import type { MapFloorplanDto } from "@/shared/api";
+import { getLatestMap, type MapFloorplanDto } from "@/shared/api";
 import { useApiErrorMessage } from "@/shared/hooks";
 
 export interface FleetMapState {
@@ -37,26 +26,12 @@ export function useFleetMap(): FleetMapState {
       setFloorplan(data);
     } catch (e) {
       setError(message(e));
-      setFloorplan((prev) => prev ?? null);
     }
   }, [message]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await getLatestMap();
-        if (!cancelled) setFloorplan(data);
-      } catch (e) {
-        if (cancelled) return;
-        setError(message(e));
-        setFloorplan(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [message]);
+    load();
+  }, [load]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -64,5 +39,11 @@ export function useFleetMap(): FleetMapState {
     setRefreshing(false);
   }, [load]);
 
-  return { floorplan, error, refreshing, reload: load, onRefresh };
+  return {
+    floorplan,
+    error,
+    refreshing,
+    reload: load,
+    onRefresh,
+  };
 }

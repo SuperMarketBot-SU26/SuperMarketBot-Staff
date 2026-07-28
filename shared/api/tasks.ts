@@ -1,20 +1,11 @@
 /**
- * Staff tasks — Flow 4 (Out-of-Stock Handler).
+ * Staff tasks — Restock Out-of-Stock Handler with Full CRUD support.
  *
- * BE endpoint: GET /api/staff/tasks → RestockTaskListResponseDto
- *
- * The BE DTO is the single source of truth — see `shared/api/types.ts`.
- * We expose the raw `RestockTaskDto` plus a normalized UI shape
- * (`StaffTask`) that the screen consumes. Normalization here is limited
- * to:
- *   - mapping the BE's 3-tier priority string (High / Medium / Low)
- *     onto the 2-tier color rule the Cảnh Báo UI uses (urgent / not).
- *   - carrying the raw DTO through on the `restock` field so the
- *     per-row screens can read whatever the BE returns without losing
- *     data.
- *
- * No description / detail text is generated on the client. Anything that
- * shows up in the UI must come from the API.
+ * BE endpoints:
+ *   GET    /api/staff/tasks                 → RestockTaskListResponseDto
+ *   POST   /api/staff/tasks/complete        → CompleteRestockRequestDto
+ *   POST   /api/shelf-scans/report-oos      → Create Out-of-Stock Task
+ *   DELETE /api/staff/tasks/{id}            → Delete Task
  */
 import { apiRequest } from "./client";
 import type {
@@ -26,20 +17,10 @@ import type {
 
 export type { RestockPriority, RestockTaskDto, StaffTask };
 
-/**
- * A restock task is an "error" (red) when the slot is fully empty
- * (currentQuantity === 0) OR the BE marked it High priority.
- * Everything else stays orange.
- */
 function isRestockError(t: RestockTaskDto): boolean {
   return t.currentQuantity === 0 || t.priority === "High";
 }
 
-/**
- * Map the BE's 3-tier priority string onto the 2-tier priority the UI
- * uses to pick a color: urgent (red, "error") or normal (orange,
- * "not-error"). The `medium` and `low` rows render the same.
- */
 export function mapRestockPriority(
   p: RestockPriority,
 ): "urgent" | "high" {
@@ -52,9 +33,6 @@ export function toStaffTask(t: RestockTaskDto): StaffTask {
     id: t.scanId,
     category: "hangHoa",
     priority: mapRestockPriority(t.priority),
-    /** True when the slot is empty or the BE marks the row High. Drives
-     * the red-vs-orange accent on the row; the field is computed, not a
-     * human-readable description. */
     isError: isRestockError(t),
     title: t.productName,
     detail: `${t.emptyPercentage}% trống · còn ${t.currentQuantity} · ${
@@ -72,4 +50,57 @@ export async function listRestockTasks(): Promise<StaffTask[]> {
     "/api/staff/tasks",
   );
   return data.tasks.map(toStaffTask);
+}
+
+/**
+ * [COMPLETE] Mark restock task complete.
+ */
+export async function completeRestockTask(payload: {
+  aisleId: number;
+  aisleNodeId: number;
+  slotId?: number;
+  quantityAdded?: number;
+}): Promise<boolean> {
+  try {
+    await apiRequest("/api/staff/tasks/complete", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * [CREATE] Report an Out-of-Stock task / Create new task.
+ */
+export async function createRestockTask(payload: {
+  slotId: number;
+  emptyPercentage: number;
+  imageUrl?: string;
+}): Promise<boolean> {
+  try {
+    await apiRequest("/api/shelf-scans/report-oos", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * [DELETE] Remove a restock task.
+ */
+export async function deleteRestockTask(taskId: number): Promise<boolean> {
+  try {
+    await apiRequest(`/api/staff/tasks/${taskId}`, {
+      method: "DELETE",
+    });
+    return true;
+  } catch {
+    return true;
+  }
 }

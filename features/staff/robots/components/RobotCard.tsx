@@ -1,15 +1,11 @@
 /**
- * RobotCard — Modern robot card with smooth animations and status indicators.
+ * RobotCard — Robot Card for Staff app.
+ * Synchronized with Admin FE Design System.
  */
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import Animated, { FadeInRight, FadeIn } from "react-native-reanimated";
+import Animated, { FadeInRight } from "react-native-reanimated";
 import { useRouter } from "expo-router";
-import {
-  DEVICE,
-  palette,
-  robotStatusConfig,
-  useIsDark,
-} from "@/shared/theme";
+import { DEVICE, palette, robotStatusConfig, useIsDark } from "@/shared/theme";
 import { type NormalizedRobot } from "@/shared/api";
 import {
   BatteryIcon,
@@ -33,15 +29,15 @@ export function RobotCard({ robot, index }: RobotCardProps) {
     robot.batteryPct < 20
       ? "#ef4444"
       : robot.batteryPct < 50
-        ? "#f59e0b"
-        : "#22c55e";
+        ? "#d97706"
+        : "#16a34a";
 
   const batteryBg =
     robot.batteryPct < 20
-      ? isDark ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.1)"
+      ? isDark ? "rgba(239,68,68,0.15)" : "#fee2e2"
       : robot.batteryPct < 50
-        ? isDark ? "rgba(245,158,11,0.15)" : "rgba(245,158,11,0.1)"
-        : isDark ? "rgba(34,197,94,0.15)" : "rgba(34,197,94,0.1)";
+        ? isDark ? "rgba(245,158,11,0.15)" : "#fef3c7"
+        : isDark ? "rgba(34,197,94,0.15)" : "#dcfce7";
 
   const getModeLabel = (mode: string) => {
     switch (mode) {
@@ -53,13 +49,13 @@ export function RobotCard({ robot, index }: RobotCardProps) {
   };
 
   return (
-    <Animated.View entering={FadeInRight.delay(index * 50).duration(300)}>
+    <Animated.View entering={FadeInRight.delay(index * 40).duration(250)}>
       <TouchableOpacity
         style={[
           styles.card,
           {
-            backgroundColor: isDark ? palette.gray[800] : "#ffffff",
-            borderColor: isDark ? palette.gray[700] : palette.gray[200],
+            backgroundColor: isDark ? "#0f172a" : "#ffffff",
+            borderColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(20, 83, 45, 0.12)",
           },
         ]}
         onPress={() =>
@@ -69,28 +65,29 @@ export function RobotCard({ robot, index }: RobotCardProps) {
         }
         activeOpacity={0.7}
       >
-        {/* Robot icon */}
-        <View style={[
-          styles.iconContainer,
-          { backgroundColor: isDark ? palette.gray[700] : `${cfg.dot}15` }
-        ]}>
-          <BotIcon size={24} color={cfg.dot} />
-          <View style={[
-            styles.statusIndicator,
-            { backgroundColor: cfg.dot }
-          ]} />
+        {/* Robot icon & status dot */}
+        <View
+          style={[
+            styles.iconContainer,
+            { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "#f0fdf4" },
+          ]}
+        >
+          <BotIcon size={26} color={cfg.dot} />
+          <View style={[styles.statusIndicator, { backgroundColor: cfg.dot }]} />
         </View>
 
         {/* Info section */}
         <View style={styles.info}>
           <View style={styles.idRow}>
-            <Text style={[styles.id, { color: isDark ? "#ffffff" : palette.gray[900] }]}>
+            <Text style={[styles.id, { color: isDark ? "#ffffff" : "#11201a" }]}>
               {robot.robotCode}
             </Text>
-            <View style={[
-              styles.statusBadge,
-              { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : `${cfg.dot}15` }
-            ]}>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : `${cfg.dot}18` },
+              ]}
+            >
               <View style={[styles.statusDot, { backgroundColor: cfg.dot }]} />
               <Text style={[styles.statusText, { color: cfg.dot }]}>
                 {cfg.label}
@@ -101,11 +98,11 @@ export function RobotCard({ robot, index }: RobotCardProps) {
           <Text
             style={[
               styles.model,
-              { color: isDark ? palette.gray[400] : palette.gray[500] },
+              { color: isDark ? palette.slate[400] : "#4a5a52" },
             ]}
             numberOfLines={1}
           >
-            {robot.robotName || "Robot tự di chuyển"}
+            {robot.robotName || "Robot di chuyển tự động"}
           </Text>
 
           <View style={styles.metaRow}>
@@ -113,28 +110,28 @@ export function RobotCard({ robot, index }: RobotCardProps) {
               <View style={styles.metaItem}>
                 <MapPinIcon
                   size={12}
-                  color={isDark ? palette.gray[500] : palette.gray[400]}
+                  color={isDark ? palette.slate[400] : "#4a5a52"}
                 />
                 <Text
                   style={[
                     styles.metaText,
-                    { color: isDark ? palette.gray[400] : palette.gray[500] },
+                    { color: isDark ? palette.slate[300] : "#11201a" },
                   ]}
                   numberOfLines={1}
                 >
-                  {`(${robot.position.x.toFixed(1)}, ${robot.position.y.toFixed(1)})`}
+                  {`(${robot.position.x.toFixed(1)}m, ${robot.position.y.toFixed(1)}m)`}
                 </Text>
               </View>
             )}
             <View style={styles.metaItem}>
               <WifiIcon
                 size={12}
-                color={isDark ? palette.gray[500] : palette.gray[400]}
+                color={isDark ? palette.slate[400] : "#4a5a52"}
               />
               <Text
                 style={[
                   styles.metaText,
-                  { color: isDark ? palette.gray[400] : palette.gray[500] },
+                  { color: isDark ? palette.slate[300] : "#11201a" },
                 ]}
               >
                 {getModeLabel(robot.mode ?? "auto")}
@@ -145,11 +142,8 @@ export function RobotCard({ robot, index }: RobotCardProps) {
 
         {/* Stats section */}
         <View style={styles.stats}>
-          <View style={[
-            styles.batteryContainer,
-            { backgroundColor: batteryBg }
-          ]}>
-            <BatteryIcon size={16} color={batteryColor} />
+          <View style={[styles.batteryContainer, { backgroundColor: batteryBg }]}>
+            <BatteryIcon size={14} color={batteryColor} />
             <Text style={[styles.batteryText, { color: batteryColor }]}>
               {robot.batteryPct}%
             </Text>
@@ -157,7 +151,7 @@ export function RobotCard({ robot, index }: RobotCardProps) {
 
           <ChevronRightIcon
             size={18}
-            color={isDark ? palette.gray[600] : palette.gray[400]}
+            color={isDark ? palette.slate[500] : "#4a5a52"}
           />
         </View>
       </TouchableOpacity>
@@ -171,18 +165,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
     padding: 14,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   iconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+    width: 50,
+    height: 50,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
@@ -199,7 +193,7 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    gap: 4,
+    gap: 3,
   },
   idRow: {
     flexDirection: "row",
@@ -207,7 +201,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   id: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
     letterSpacing: -0.3,
   },
@@ -215,7 +209,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 2.5,
     borderRadius: 8,
     gap: 4,
   },
@@ -229,7 +223,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   model: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
   },
   metaRow: {
@@ -244,7 +238,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   stats: {
     alignItems: "flex-end",
@@ -256,11 +250,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 10,
     gap: 4,
   },
   batteryText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });

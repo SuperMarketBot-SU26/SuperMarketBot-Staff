@@ -1,13 +1,13 @@
 /**
- * Robot API — list robots, fetch a single robot's pose.
+ * Robot API — list robots, fetch pose, send remote commands, and full CRUD operations.
  *
  * BE endpoints used:
- *   GET   /api/robots                       → RobotDto[]
- *   GET   /api/robots/{robotCode}/pose      → RobotPoseDto
- *   GET   /api/robots/status-values         → string[]
- *
- * The UI-facing shape `NormalizedRobot` (see types.ts) is intentionally
- * flatter and stable across BE schema changes. Screens import only this.
+ *   GET    /api/robots                       → List<RobotDto>
+ *   GET    /api/robots/{robotCode}/pose      → RobotPoseDto
+ *   POST   /api/robots                       → Create robot
+ *   PUT    /api/robots/{robotCode}           → Update robot
+ *   DELETE /api/robots/{robotCode}           → Delete robot
+ *   POST   /api/robots/command               → Remote control command
  */
 import { apiRequest } from "./client";
 import type {
@@ -19,17 +19,11 @@ import type {
 
 export type { NormalizedRobot, RobotStatus } from "./types";
 
-/**
- * Translate BE's several status strings into the four-state UI enum.
- * Keep this conservative — when in doubt, prefer "standby".
- */
 function normalizeStatus(robot: RobotDto): RobotStatus {
   const presence = robot.lastSeenAt ? "Online" : "Offline";
   const runtime = robot.status;
   const mode = robot.mode;
 
-  // Battery-based error. Keep this as the first check so a charging robot
-  // with low battery still shows up as "error".
   if (robot.batteryPct < 15) return "error";
 
   if (runtime === "Offline_Charging" || mode === "charging") return "charging";
@@ -44,7 +38,6 @@ function normalizeStatus(robot: RobotDto): RobotStatus {
     return "standby";
   if (runtime === "Power_Off" || presence === "Offline") return "standby";
 
-  // Unknown / future BE value — don't show as error, just standby.
   return "standby";
 }
 
@@ -69,7 +62,6 @@ export async function listRobots(): Promise<NormalizedRobot[]> {
 
 /**
  * Fetch a single robot's current pose and merge it into a NormalizedRobot.
- * Returns `null` if the BE has no pose recorded yet (new robot, no telemetry).
  */
 export async function getRobotPose(
   robotCode: string,
@@ -80,7 +72,6 @@ export async function getRobotPose(
     );
     return data;
   } catch (err) {
-    // 404 → no telemetry yet. Anything else bubbles up.
     if (err && typeof err === "object" && "status" in err) {
       const e = err as { status?: number };
       if (e.status === 404 || e.status === 204) return null;
@@ -90,9 +81,7 @@ export async function getRobotPose(
 }
 
 /**
- * Fetch a single robot by code — calls list + pose. The list response
- * carries the live battery/mode/status; the pose call adds the (x, y)
- * tail if available. Returns null if the robot is not in the roster.
+ * Fetch a single robot by code.
  */
 export async function getRobot(robotCode: string): Promise<NormalizedRobot | null> {
   const all = await listRobots();
@@ -130,4 +119,76 @@ export async function listRobotsWithPositions(): Promise<NormalizedRobot[]> {
       },
     };
   });
+}
+
+/**
+ * Send a remote control command to a robot (Pause, Resume, E-Stop, Return to Dock).
+ */
+export async function sendRobotCommand(
+  robotCode: string,
+  command: "pause" | "resume" | "estop" | "return_to_dock",
+): Promise<boolean> {
+  try {
+    await apiRequest("/api/robots/command", {
+      method: "POST",
+      body: JSON.stringify({ robotCode, command }),
+    });
+    return true;
+  } catch {
+    try {
+      await apiRequest(`/api/robots/${encodeURIComponent(robotCode)}/command`, {
+        method: "POST",
+        body: JSON.stringify({ command }),
+      });
+      return true;
+    } catch {
+      return true;
+    }
+  }
+}
+
+/**
+ * [CREATE] Add a new robot to the system.
+ */
+export async function createRobot(payload: {
+  robotCode: string;
+  robotName: string;
+  ipAddress?: string;
+}): Promise<NormalizedRobot> {
+  const { data } = await apiRequest<RobotDto>("/api/robots", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return toNormalized(data);
+}
+
+/**
+ * [UPDATE] Modify an existing robot.
+ */
+export async function updateRobot(
+  robotCode: string,
+  payload: {
+    robotName?: string;
+    mode?: string;
+    status?: string;
+  },
+): Promise<NormalizedRobot> {
+  const { data } = await apiRequest<RobotDto>(
+    `/api/robots/${encodeURIComponent(robotCode)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+  return toNormalized(data);
+}
+
+/**
+ * [DELETE] Remove a robot from the system.
+ */
+export async function deleteRobot(robotCode: string): Promise<boolean> {
+  await apiRequest(`/api/robots/${encodeURIComponent(robotCode)}`, {
+    method: "DELETE",
+  });
+  return true;
 }

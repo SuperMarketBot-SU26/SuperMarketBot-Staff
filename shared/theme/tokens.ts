@@ -1,29 +1,24 @@
 /**
- * SmartMarket Staff App — Unified Design System
- * Based on Figma design: violet primary, emerald/amber/red status system
- * Samsung Galaxy S25 (360dp wide × 792dp tall) as reference device
+ * SmartMarket Staff App — Pure White Design System (Matching Admin FE 100%)
  *
- * Single source of truth for:
- *   - the raw colour palette (every shade we use across the app)
- *   - the resolved `Theme` object for light/dark mode (consumed by useAppTheme)
- *   - spacing / radius / typography / shadow tokens
- *   - status / priority colour configs the screens look up by name
+ * All themes (light & dark) use the Pure White & Soft Mint Slate palette
+ * so that dark backgrounds NEVER appear anywhere in the app.
  */
 
 /* ─── Color Palette ──────────────────────────────────────────────────── */
 export const palette = {
-  violet: {
-    50:  "#f5f3ff",
-    100: "#ede9fe",
-    200: "#ddd6fe",
-    300: "#c4b5fd",
-    400: "#a78bfa",
-    500: "#8b5cf6",
-    600: "#7c3aed",
-    700: "#6d28d9",
-    800: "#5b21b6",
-    900: "#4c1d95",
-    950: "#2e1065",
+  green: {
+    50:  "#f0fdf4",
+    100: "#dcfce7",
+    200: "#bbf7d0",
+    300: "#86efac",
+    400: "#4ade80",
+    500: "#22c55e",
+    600: "#16a34a",
+    700: "#15803d",
+    800: "#166534",
+    900: "#14532d",
+    950: "#052e16",
   },
 
   emerald: {
@@ -82,126 +77,113 @@ export const palette = {
     950: "#172554",
   },
 
-  orange: {
-    50:  "#fff7ed",
-    100: "#ffedd5",
-    200: "#fed7aa",
-    300: "#fdba74",
-    400: "#fb923c",
-    500: "#f97316",
-    600: "#ea580c",
-    700: "#c2410c",
-    800: "#9a3412",
-    900: "#7c2d12",
-    950: "#431407",
+  slate: {
+    50:  "#f7faf7",
+    100: "#f3f8f4",
+    200: "#e6eee7",
+    300: "#cad6cf",
+    400: "#94a3b8",
+    500: "#64748b",
+    600: "#475569",
+    700: "#334155",
+    800: "#1e293b",
+    850: "#151e2e",
+    900: "#11201a",
+    950: "#052e16",
   },
 
   gray: {
-    50:  "#f9fafb",
-    100: "#f3f4f6",
-    200: "#e5e7eb",
-    300: "#d1d5db",
-    400: "#9ca3af",
-    500: "#6b7280",
-    600: "#4b5563",
-    700: "#374151",
-    800: "#1f2937",
-    850: "#18181b",
-    900: "#111827",
-    950: "#030712",
+    50:  "#f7faf7",
+    100: "#f3f8f4",
+    200: "#e6eee7",
+    300: "#cad6cf",
+    400: "#94a3b8",
+    500: "#64748b",
+    600: "#475569",
+    700: "#334155",
+    800: "#1e293b",
+    850: "#151e2e",
+    900: "#11201a",
+    950: "#052e16",
+  },
+
+  teal: {
+    50:  "#f0fdf4",
+    100: "#dcfce7",
+    200: "#bbf7d0",
+    300: "#86efac",
+    400: "#4ade80",
+    500: "#22c55e",
+    600: "#16a34a",
+    700: "#15803d",
+    800: "#166534",
+    900: "#14532d",
+    950: "#052e16",
+  },
+
+  violet: {
+    50:  "#f0fdf4",
+    100: "#dcfce7",
+    200: "#bbf7d0",
+    300: "#86efac",
+    400: "#4ade80",
+    500: "#22c55e",
+    600: "#16a34a",
+    700: "#15803d",
+    800: "#166534",
+    900: "#14532d",
+    950: "#052e16",
   },
 } as const;
 
-/* ─── Light / Dark Theme Objects ─────────────────────────────────────── */
+/* ─── Pure White Theme Objects (Eliminating Dark Backgrounds) ─────────── */
 export const lightTheme = {
   mode: "light" as const,
-  background: "#ffffff",
-  foreground: "#111827",
+  background: "#f7faf7",
+  foreground: "#11201a",
   card: "#ffffff",
-  cardForeground: "#111827",
+  cardForeground: "#11201a",
   popover: "#ffffff",
-  popoverForeground: "#111827",
-  primary: palette.violet[600],
+  popoverForeground: "#11201a",
+  primary: palette.green[800],
   primaryForeground: "#ffffff",
-  secondary: palette.gray[100],
-  secondaryForeground: "#111827",
-  muted: palette.gray[100],
-  mutedForeground: palette.gray[500],
-  accent: palette.violet[50],
-  accentForeground: palette.violet[700],
+  secondary: palette.green[100],
+  secondaryForeground: "#11201a",
+  muted: palette.slate[100],
+  mutedForeground: palette.slate[500],
+  accent: palette.green[50],
+  accentForeground: palette.green[900],
   destructive: palette.red[600],
   destructiveForeground: "#ffffff",
-  border: palette.gray[200],
+  border: "rgba(20,83,45,0.15)",
   input: "transparent",
-  inputBackground: palette.gray[50],
-  ring: palette.violet[400],
+  inputBackground: palette.slate[50],
+  ring: palette.green[500],
   sidebar: "#ffffff",
-  sidebarForeground: "#111827",
-  sidebarPrimary: palette.violet[700],
+  sidebarForeground: "#11201a",
+  sidebarPrimary: palette.green[800],
   sidebarPrimaryForeground: "#ffffff",
-  sidebarAccent: palette.violet[50],
-  sidebarAccentForeground: palette.violet[700],
-  sidebarBorder: palette.gray[200],
-  sidebarRing: palette.violet[400],
-  chart1: palette.violet[500],
+  sidebarAccent: palette.green[50],
+  sidebarAccentForeground: palette.green[900],
+  sidebarBorder: "rgba(20,83,45,0.15)",
+  sidebarRing: palette.green[500],
+  chart1: palette.green[600],
   chart2: palette.emerald[500],
   chart3: palette.amber[500],
   chart4: palette.blue[500],
   chart5: palette.red[500],
   statusActive: palette.emerald[500],
-  statusStandby: palette.amber[500],
+  statusStandby: palette.blue[500],
   statusError: palette.red[500],
-  statusCharging: palette.blue[500],
-  surface: palette.gray[50],
+  statusCharging: palette.amber[500],
+  surface: palette.slate[50],
   surfaceElevated: "#ffffff",
 };
 
-export const darkTheme = {
-  mode: "dark" as const,
-  background: "#030712",
-  foreground: "#f9fafb",
-  card: "#111827",
-  cardForeground: "#f9fafb",
-  popover: "#111827",
-  popoverForeground: "#f9fafb",
-  primary: palette.violet[500],
-  primaryForeground: "#ffffff",
-  secondary: palette.gray[800],
-  secondaryForeground: "#f9fafb",
-  muted: palette.gray[800],
-  mutedForeground: palette.gray[400],
-  accent: palette.violet[900],
-  accentForeground: palette.violet[300],
-  destructive: palette.red[600],
-  destructiveForeground: "#ffffff",
-  border: palette.gray[800],
-  input: "transparent",
-  inputBackground: palette.gray[800],
-  ring: palette.violet[500],
-  sidebar: "#030712",
-  sidebarForeground: "#f9fafb",
-  sidebarPrimary: palette.violet[500],
-  sidebarPrimaryForeground: "#ffffff",
-  sidebarAccent: palette.violet[900],
-  sidebarAccentForeground: palette.violet[300],
-  sidebarBorder: palette.gray[800],
-  sidebarRing: palette.violet[500],
-  chart1: palette.violet[400],
-  chart2: palette.emerald[400],
-  chart3: palette.amber[400],
-  chart4: palette.blue[400],
-  chart5: palette.red[400],
-  statusActive: palette.emerald[400],
-  statusStandby: palette.amber[400],
-  statusError: palette.red[400],
-  statusCharging: palette.blue[400],
-  surface: palette.gray[900],
-  surfaceElevated: palette.gray[800],
-};
+export const darkTheme = { ...lightTheme, mode: "dark" as const };
 
 export type Theme = typeof lightTheme;
 
-/* ─── Spacing & Radius ───────────────────────────────────────────────── */
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -220,7 +202,6 @@ export const radius = {
   full: 9999,
 } as const;
 
-/* ─── Typography ─────────────────────────────────────────────────────── */
 export const typography = {
   fontSize: {
     xs: 11,
@@ -245,27 +226,25 @@ export const typography = {
   },
 } as const;
 
-/* ─── Shadows ────────────────────────────────────────────────────────── */
 export const shadows = {
   sm: {
     light: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)",
-    dark: "0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)",
+    dark: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)",
   },
   md: {
     light: "0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)",
-    dark: "0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)",
+    dark: "0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)",
   },
   lg: {
     light: "0 10px 30px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06)",
-    dark: "0 10px 30px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.4)",
+    dark: "0 10px 30px rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.06)",
   },
-  violet: {
-    light: "0 4px 16px rgba(124,58,237,0.2)",
-    dark: "0 4px 16px rgba(124,58,237,0.4)",
+  green: {
+    light: "0 4px 16px rgba(22,163,74,0.2)",
+    dark: "0 4px 16px rgba(22,163,74,0.2)",
   },
 } as const;
 
-/* ─── Device Constants (Samsung Galaxy S25 reference) ─────────────────── */
 export const DEVICE = {
   screenWidth: 360,
   screenHeight: 792,

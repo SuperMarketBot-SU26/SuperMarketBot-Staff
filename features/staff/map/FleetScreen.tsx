@@ -1,9 +1,8 @@
 /**
  * FleetScreen — Bản Đồ Đội Robot overview page.
- *
- * Modern UI với glassmorphism cards, smooth animations,
- * và polished robot list.
+ * Pure White Theme matching Admin FE 100%.
  */
+import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { DEVICE, palette, useIsDark } from "@/shared/theme";
+import { DEVICE, palette } from "@/shared/theme";
 import { type NormalizedRobot } from "@/shared/api";
 import { useRobotList, useFleetMap } from "./hooks";
 import { MapPlaceholder } from "./components/MapPlaceholder";
@@ -23,63 +22,73 @@ import { RobotCard } from "../robots/components/RobotCard";
 import { SummaryStrip } from "../robots/components/SummaryStrip";
 
 export default function FleetScreen() {
-  const isDark = useIsDark();
   const router = useRouter();
   const { robots, error, refreshing, onRefresh } = useRobotList();
   const { floorplan } = useFleetMap();
+  const [estop, setEstop] = useState(false);
 
   const initialLoading = robots === null;
   const onlineCount = robots?.filter((r) => r.status === "active" || r.status === "standby").length ?? 0;
   const totalCount = robots?.length ?? 0;
 
-  const bgGradient = isDark
-    ? ["#0f172a", "#1e293b"]
-    : ["#f8fafc", "#f1f5f9"];
-
   return (
-    <View style={[styles.page, { backgroundColor: isDark ? palette.gray[950] : "#f8fafc" }]}>
+    <View style={[styles.page, { backgroundColor: "#f7faf7" }]}>
       {/* Header */}
-      <View style={[
-        styles.header,
-        { backgroundColor: isDark ? palette.gray[900] : "#ffffff" }
-      ]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: "#ffffff",
+            borderBottomColor: "rgba(20,83,45,0.12)",
+          },
+        ]}
+      >
         <View style={styles.headerContent}>
           <View style={styles.headerText}>
-            <Text style={[
-              styles.headerTitle,
-              { color: isDark ? "#ffffff" : palette.gray[900] }
-            ]}>
-              Đội Robot
-            </Text>
-            <Text style={[
-              styles.headerSubtitle,
-              { color: isDark ? palette.gray[400] : palette.gray[500] }
-            ]}>
+            <View style={styles.titleRow}>
+              <Text style={[styles.headerTitle, { color: "#11201a" }]}>
+                Đội Robot Siêu Thị
+              </Text>
+              <View style={[styles.tealTag, { backgroundColor: "#dcfce7" }]}>
+                <Text style={[styles.tealTagText, { color: "#166534" }]}>STAFF OPS</Text>
+              </View>
+            </View>
+            <Text style={[styles.headerSubtitle, { color: "#4a5a52" }]}>
               {initialLoading
                 ? "Đang kết nối..."
-                : `${onlineCount}/${totalCount} robot hoạt động`}
+                : `${onlineCount}/${totalCount} robot đang kết nối`}
             </Text>
           </View>
 
-          {/* Live indicator */}
-          {!initialLoading && (
-            <View style={[
-              styles.liveBadge,
-              {
-                backgroundColor: isDark
-                  ? "rgba(34,197,94,0.15)"
-                  : "rgba(34,197,94,0.1)"
-              }
-            ]}>
-              <View style={styles.liveDot} />
-              <Text style={[
-                styles.liveText,
-                { color: "#22c55e" }
-              ]}>
-                Live
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {/* Safety E-Stop Button */}
+            <Pressable
+              onPress={() => setEstop((prev) => !prev)}
+              style={[
+                styles.estopBtn,
+                { backgroundColor: estop ? "#ef4444" : "rgba(239,68,68,0.08)" },
+              ]}
+            >
+              <Text style={[styles.estopText, { color: estop ? "#ffffff" : "#ef4444" }]}>
+                {estop ? "🚨 E-STOPPED" : "🚨 E-STOP"}
               </Text>
-            </View>
-          )}
+            </Pressable>
+
+            {/* Live Indicator */}
+            {!initialLoading && (
+              <View
+                style={[
+                  styles.liveBadge,
+                  { backgroundColor: "#dcfce7" },
+                ]}
+              >
+                <View style={styles.liveDot} />
+                <Text style={[styles.liveText, { color: "#15803d" }]}>
+                  Live
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Status pills */}
@@ -88,26 +97,22 @@ export default function FleetScreen() {
             <StatusPill
               label="Hoạt động"
               count={onlineCount}
-              color="#22c55e"
-              isDark={isDark}
+              color="#16a34a"
             />
             <StatusPill
               label="Đang chạy"
               count={robots?.filter((r) => r.status === "active").length ?? 0}
-              color="#3b82f6"
-              isDark={isDark}
+              color="#2563eb"
             />
             <StatusPill
               label="Sạc pin"
               count={robots?.filter((r) => r.status === "charging").length ?? 0}
-              color="#f59e0b"
-              isDark={isDark}
+              color="#d97706"
             />
             <StatusPill
               label="Báo lỗi"
               count={robots?.filter((r) => r.status === "error").length ?? 0}
-              color="#ef4444"
-              isDark={isDark}
+              color="#dc2626"
             />
           </View>
         )}
@@ -121,8 +126,7 @@ export default function FleetScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={palette.violet[500]}
-            colors={[palette.violet[500]]}
+            tintColor={palette.green[700]}
           />
         }
       >
@@ -132,23 +136,25 @@ export default function FleetScreen() {
           style={({ pressed }) => [
             styles.mapCard,
             {
-              backgroundColor: isDark ? palette.gray[800] : "#ffffff",
-              borderColor: isDark ? palette.gray[700] : palette.gray[200],
-              transform: [{ scale: pressed ? 0.98 : 1 }],
+              backgroundColor: "#ffffff",
+              borderColor: "rgba(20,83,45,0.12)",
+              transform: [{ scale: pressed ? 0.985 : 1 }],
             },
           ]}
         >
           <MapPlaceholder
             floorplan={floorplan}
             robots={robots ?? []}
-            height={200}
+            height={260}
           />
 
           {/* Fullscreen hint */}
-          <View style={[
-            styles.mapHint,
-            { backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.4)" }
-          ]}>
+          <View
+            style={[
+              styles.mapHint,
+              { backgroundColor: "rgba(17,32,26,0.85)" },
+            ]}
+          >
             <Text style={styles.mapHintText}>Nhấn để xem bản đồ đầy đủ</Text>
             <View style={styles.mapHintArrow}>
               <Text style={styles.mapHintArrowText}>→</Text>
@@ -166,22 +172,28 @@ export default function FleetScreen() {
         {/* Robot list */}
         <View style={styles.robotListSection}>
           <View style={styles.sectionHeader}>
-            <Text style={[
-              styles.sectionTitle,
-              { color: isDark ? "#ffffff" : palette.gray[900] }
-            ]}>
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: "#11201a" },
+              ]}
+            >
               Danh sách Robot
             </Text>
             {!initialLoading && totalCount > 0 && (
-              <View style={[
-                styles.countBadge,
-                { backgroundColor: isDark ? palette.gray[700] : palette.gray[100] }
-              ]}>
-                <Text style={[
-                  styles.countBadgeText,
-                  { color: isDark ? palette.gray[300] : palette.gray[600] }
-                ]}>
-                  {totalCount}
+              <View
+                style={[
+                  styles.countBadge,
+                  { backgroundColor: "#dcfce7" },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.countBadgeText,
+                    { color: "#14532d" },
+                  ]}
+                >
+                  {totalCount} Units
                 </Text>
               </View>
             )}
@@ -189,11 +201,13 @@ export default function FleetScreen() {
 
           {initialLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator color={palette.violet[500]} size="large" />
-              <Text style={[
-                styles.loadingText,
-                { color: isDark ? palette.gray[400] : palette.gray[500] }
-              ]}>
+              <ActivityIndicator color={palette.green[700]} size="large" />
+              <Text
+                style={[
+                  styles.loadingText,
+                  { color: "#4a5a52" },
+                ]}
+              >
                 Đang tải danh sách robot...
               </Text>
             </View>
@@ -207,27 +221,35 @@ export default function FleetScreen() {
               </View>
             </>
           ) : !error ? (
-            <View style={[
-              styles.emptyState,
-              { backgroundColor: isDark ? palette.gray[800] : "#ffffff" }
-            ]}>
-              <View style={[
-                styles.emptyIcon,
-                { backgroundColor: isDark ? "rgba(124,58,237,0.2)" : palette.violet[50] }
-              ]}>
-                <Text style={{ fontSize: 24 }}>🤖</Text>
+            <View
+              style={[
+                styles.emptyState,
+                { backgroundColor: "#ffffff" },
+              ]}
+            >
+              <View
+                style={[
+                  styles.emptyIcon,
+                  { backgroundColor: "#dcfce7" },
+                ]}
+              >
+                <Text style={{ fontSize: 28 }}>🤖</Text>
               </View>
-              <Text style={[
-                styles.emptyTitle,
-                { color: isDark ? "#ffffff" : palette.gray[900] }
-              ]}>
+              <Text
+                style={[
+                  styles.emptyTitle,
+                  { color: "#11201a" },
+                ]}
+              >
                 Chưa có robot nào
               </Text>
-              <Text style={[
-                styles.emptySubtitle,
-                { color: isDark ? palette.gray[400] : palette.gray[500] }
-              ]}>
-                Robot sẽ xuất hiện khi được kết nối với hệ thống
+              <Text
+                style={[
+                  styles.emptySubtitle,
+                  { color: "#4a5a52" },
+                ]}
+              >
+                Robot sẽ xuất hiện khi kết nối hệ thống
               </Text>
             </View>
           ) : null}
@@ -241,31 +263,31 @@ function StatusPill({
   label,
   count,
   color,
-  isDark,
 }: {
   label: string;
   count: number;
   color: string;
-  isDark: boolean;
 }) {
   return (
-    <View style={[
-      styles.statusPill,
-      {
-        backgroundColor: isDark ? palette.gray[800] : `${color}15`,
-        borderColor: isDark ? palette.gray[700] : `${color}30`,
-      }
-    ]}>
+    <View
+      style={[
+        styles.statusPill,
+        {
+          backgroundColor: `${color}12`,
+          borderColor: `${color}25`,
+        },
+      ]}
+    >
       <View style={[styles.statusDot, { backgroundColor: color }]} />
-      <Text style={[
-        styles.statusLabel,
-        { color: isDark ? palette.gray[300] : palette.gray[600] }
-      ]}>
+      <Text
+        style={[
+          styles.statusLabel,
+          { color: "#4a5a52" },
+        ]}
+      >
         {label}
       </Text>
-      <Text style={[styles.statusCount, { color }]}>
-        {count}
-      </Text>
+      <Text style={[styles.statusCount, { color }]}>{count}</Text>
     </View>
   );
 }
@@ -275,97 +297,114 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 16,
+    paddingTop: 52,
+    paddingBottom: 14,
     paddingHorizontal: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    borderBottomWidth: 1,
   },
   headerContent: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
   },
   headerText: {
-    gap: 4,
+    gap: 2,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   headerTitle: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "800",
     letterSpacing: -0.5,
   },
+  tealTag: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  tealTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
   headerSubtitle: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  estopBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.3)",
+  },
+  estopText: {
+    fontSize: 11,
+    fontWeight: "800",
   },
   liveBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
     gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
   liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: "#22c55e",
   },
   liveText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   statusRow: {
     flexDirection: "row",
-    gap: 8,
-    marginTop: 16,
-    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 12,
   },
   statusPill: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
+    gap: 5,
+    paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    gap: 6,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusLabel: {
-    fontSize: 12,
-    fontWeight: "500",
+    fontSize: 10,
+    fontWeight: "700",
+    flex: 1,
   },
   statusCount: {
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "800",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100,
     gap: 16,
+    paddingBottom: 32,
   },
   mapCard: {
     borderRadius: 20,
     borderWidth: 1,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    position: "relative",
   },
   mapHint: {
     position: "absolute",
@@ -373,28 +412,28 @@ const styles = StyleSheet.create({
     right: 12,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
+    gap: 6,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    borderRadius: 20,
   },
   mapHintText: {
     color: "#ffffff",
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   mapHintArrow: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
   mapHintArrowText: {
     color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "800",
   },
   robotListSection: {
     gap: 12,
@@ -405,53 +444,53 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.3,
   },
   countBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   countBadgeText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  loadingContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 48,
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 11,
+    fontWeight: "700",
   },
   robotList: {
     gap: 10,
   },
-  emptyState: {
+  loadingContainer: {
+    paddingVertical: 48,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 48,
-    paddingHorizontal: 24,
-    borderRadius: 20,
     gap: 12,
   },
-  emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  loadingText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  emptyState: {
+    padding: 32,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+  },
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     textAlign: "center",
-    lineHeight: 20,
   },
 });

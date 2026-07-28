@@ -1,12 +1,9 @@
 /**
- * StaffHeader — top bar rendered inside <StaffLayout>.
- *
- * Shows: hamburger (opens sidebar) | title | dark-mode toggle.
- * Hamburger is a small interactive square; theme toggle is the same shape.
+ * StaffHeader — Pure White Header top bar.
+ * Matching Forest Green & Mint Slate design language of Admin FE 100%.
  */
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { DEVICE, palette, useIsDark, useThemeToggle } from "@/shared/theme";
-import { MoonIcon, SunIcon } from "@/shared/ui";
+import { DEVICE, palette } from "@/shared/theme";
 import { HamburgerIcon } from "./HamburgerIcon";
 
 interface StaffHeaderProps {
@@ -18,77 +15,51 @@ export function StaffHeader({
   sidebarOpen,
   onOpenSidebar,
 }: StaffHeaderProps) {
-  const isDark = useIsDark();
-  const { toggle: toggleDark } = useThemeToggle();
-
-  const headerBg = isDark ? palette.gray[900] : "#ffffff";
-  const headerBorder = isDark ? palette.gray[800] : palette.gray[200];
-
   return (
     <View
       style={[
         styles.header,
         {
-          backgroundColor: headerBg,
-          borderBottomColor: headerBorder,
+          backgroundColor: "#ffffff",
+          borderBottomColor: "rgba(20, 83, 45, 0.12)",
           height: DEVICE.headerHeight,
         },
       ]}
     >
-      {/* Hamburger */}
+      {/* Hamburger Menu Toggle */}
       <TouchableOpacity
         onPress={onOpenSidebar}
         style={[
           styles.headerButton,
           {
-            backgroundColor: sidebarOpen
-              ? palette.violet[600]
-              : isDark ? palette.gray[800] : palette.gray[100],
+            backgroundColor: sidebarOpen ? palette.green[700] : "#f0fdf4",
           },
         ]}
         activeOpacity={0.7}
       >
         <HamburgerIcon
           open={sidebarOpen}
-          color={
-            sidebarOpen
-              ? "#ffffff"
-              : isDark ? palette.gray[300] : palette.gray[600]
-          }
+          color={sidebarOpen ? "#ffffff" : palette.green[800]}
         />
       </TouchableOpacity>
 
-      {/* Title */}
+      {/* Brand Title */}
       <View style={styles.headerTitle}>
-        <View style={[styles.headerLiveDot, { backgroundColor: palette.violet[500] }]} />
+        <View style={[styles.headerLiveDot, { backgroundColor: "#22c55e" }]} />
         <Text
           style={[
             styles.headerTitleText,
-            { color: isDark ? "#ffffff" : palette.gray[900] },
+            { color: "#11201a" },
           ]}
         >
-          Staff App
+          SuperMarketBot Staff
         </Text>
       </View>
 
-      {/* Dark mode toggle */}
-      <TouchableOpacity
-        onPress={toggleDark}
-        style={[
-          styles.headerButton,
-          { backgroundColor: isDark ? palette.gray[800] : palette.gray[100] },
-        ]}
-        activeOpacity={0.7}
-      >
-        {isDark ? (
-          <SunIcon size={16} color={palette.amber[400] ?? "#fbbf24"} />
-        ) : (
-          <MoonIcon
-            size={16}
-            color={isDark ? palette.gray[300] : palette.gray[600]}
-          />
-        )}
-      </TouchableOpacity>
+      {/* Status Badge */}
+      <View style={styles.headerBadge}>
+        <Text style={styles.headerBadgeText}>ONLINE</Text>
+      </View>
     </View>
   );
 }
@@ -103,9 +74,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -120,7 +91,19 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   headerTitleText: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+  headerBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "#dcfce7",
+  },
+  headerBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#166534",
   },
 });

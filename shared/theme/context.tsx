@@ -1,11 +1,6 @@
 /**
  * SmartMarket Staff App — Theme Provider
- *
- * Lets the user override the system color scheme with a manual toggle.
- * Reads from system on first load, then the toggle wins.
- *
- * Lives in `shared/theme/` because every feature needs to consume it.
- * Mounted once at the root layout.
+ * Defaults to Light Mode ("light") for pure white, high-contrast Admin FE style by default.
  */
 import React, {
   createContext,
@@ -21,24 +16,18 @@ type ThemeMode = "light" | "dark" | "system";
 type ResolvedMode = "light" | "dark";
 
 export interface ThemeContextValue {
-  /** The full theme object for the currently resolved mode */
   theme: Theme;
-  /** Whether the resolved theme is dark */
   isDark: boolean;
-  /** The user's manual preference (system = follow device) */
   mode: ThemeMode;
-  /** The actually-rendered mode after applying the system fallback */
   resolved: ResolvedMode;
-  /** Toggle between light/dark. If currently "system", remembers the choice. */
   toggle: () => void;
-  /** Explicitly set the mode */
   setMode: (m: ThemeMode) => void;
 }
 
 const defaultContext: ThemeContextValue = {
   theme: lightTheme,
   isDark: false,
-  mode: "system",
+  mode: "light",
   resolved: "light",
   toggle: () => {},
   setMode: () => {},
@@ -51,7 +40,8 @@ export const ThemeContext =
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useRNColorScheme();
-  const [mode, setMode] = useState<ThemeMode>("system");
+  /* Force default to "light" mode so app opens in pure white like Admin FE */
+  const [mode, setMode] = useState<ThemeMode>("light");
 
   const resolved: ResolvedMode = useMemo(() => {
     if (mode === "system") return systemScheme === "dark" ? "dark" : "light";
