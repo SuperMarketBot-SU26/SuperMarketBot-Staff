@@ -58,6 +58,9 @@ function buildRestockHref(task: Task): string {
     shelfLocation: enc(task.restock.shelfLocation),
     productName: enc(task.restock.productName),
     emptyPercentage: enc(task.restock.emptyPercentage),
+    aisleId: enc(task.restock.aisleId),
+    aisleNodeId: enc(task.restock.aisleNodeId ?? ""),
+    slotId: enc(task.restock.slotId),
   });
   return `/staff/restock-location?${params.toString()}`;
 }

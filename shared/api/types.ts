@@ -115,6 +115,8 @@ export interface RestockTaskDto {
   reportedAt: string;
   priority: RestockPriority;
   hasWarehouseStock: boolean;
+  aisleId: number;
+  aisleNodeId: number | null;
 }
 
 export interface RestockTaskListResponseDto {
