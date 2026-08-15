@@ -40,6 +40,7 @@ interface MapCanvasProps {
   onZonePress?: (zone: any) => void;
   showLabels?: boolean;
   showDimensions?: boolean;
+  showHeatmap?: boolean;
   width?: number | string;
   height?: number | string;
 }
@@ -53,6 +54,7 @@ export function MapCanvas({
   onZonePress,
   showLabels = true,
   showDimensions = true,
+  showHeatmap = false,
   width,
   height,
 }: MapCanvasProps) {
@@ -259,16 +261,56 @@ export function MapCanvas({
             onPress={onZonePress ? () => onZonePress(zone) : undefined}
           >
             {/* Shelf Box */}
-            <Rect
-              x={zone.x}
-              y={zone.y}
-              width={zone.width}
-              height={zone.height}
-              fill={isSelected ? `${zone.stroke}35` : zone.fill}
-              stroke={zone.stroke}
-              strokeWidth={isSelected ? (zone.strokeWidth ?? 0.025) * 1.5 : (zone.strokeWidth ?? 0.025)}
-              rx={0.02}
-            />
+            {!showHeatmap ? (
+              <Rect
+                x={zone.x}
+                y={zone.y}
+                width={zone.width}
+                height={zone.height}
+                fill={isSelected ? `${zone.stroke}35` : zone.fill}
+                stroke={zone.stroke}
+                strokeWidth={isSelected ? (zone.strokeWidth ?? 0.025) * 1.5 : (zone.strokeWidth ?? 0.025)}
+                rx={0.02}
+              />
+            ) : (
+              <G>
+                {/* Draw segments */}
+                {[0, 1, 2, 3].map((i) => {
+                  const segments = 4;
+                  const isHoriz = zone.width > zone.height;
+                  const segW = isHoriz ? zone.width / segments : zone.width;
+                  const segH = isHoriz ? zone.height : zone.height / segments;
+                  const segX = zone.x + (isHoriz ? i * segW : 0);
+                  const segY = zone.y + (isHoriz ? 0 : i * segH);
+                  // Generate pseudo-random density based on zone.id and index
+                  const heatLevels = ['rgba(239, 68, 68, 0.6)', 'rgba(249, 115, 22, 0.6)', 'rgba(34, 197, 94, 0.6)']; // Red, Orange, Green
+                  const charCode = zone.id.charCodeAt(zone.id.length - 1) + i * 7;
+                  const color = heatLevels[charCode % 3];
+
+                  return (
+                    <Rect
+                      key={`seg-${i}`}
+                      x={segX}
+                      y={segY}
+                      width={segW}
+                      height={segH}
+                      fill={color}
+                    />
+                  );
+                })}
+                {/* Outline */}
+                <Rect
+                  x={zone.x}
+                  y={zone.y}
+                  width={zone.width}
+                  height={zone.height}
+                  fill="none"
+                  stroke={zone.stroke}
+                  strokeWidth={isSelected ? (zone.strokeWidth ?? 0.025) * 1.5 : (zone.strokeWidth ?? 0.025)}
+                  rx={0.02}
+                />
+              </G>
+            )}
 
             {/* Zone Number Label 100% Centered INSIDE */}
             <G transform={`translate(${centerX}, ${centerY})`}>

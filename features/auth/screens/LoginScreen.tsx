@@ -15,12 +15,14 @@ import {
   ScrollView,
   StyleSheet,
   TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { palette, useIsDark } from "@/shared/theme";
+import { useIsDark } from "@/shared/theme";
 import { ApiError } from "@/shared/api";
 import { useAuth } from "../context";
 import { LoginCard } from "../components/LoginCard";
+import { AnimatedBackground } from "../components/AnimatedBackground";
 
 export default function LoginScreen() {
   const isDark = useIsDark();
@@ -39,10 +41,7 @@ export default function LoginScreen() {
     setSubmitting(true);
     try {
       await auth.login(email.trim(), password);
-      // AuthProvider flips status → root layout redirects to /staff/fleet.
-      // We also call router.replace as a belt-and-braces in case the user
-      // was already deep in the stack.
-      router.replace("/staff/fleet" as any);
+      router.replace("/staff/index" as any);
     } catch (e) {
       const msg =
         e instanceof ApiError
@@ -62,23 +61,25 @@ export default function LoginScreen() {
       style={{ flex: 1 }}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView
-          contentContainerStyle={[
-            styles.page,
-            { backgroundColor: isDark ? palette.gray[950] : "#f3f4f6" },
-          ]}
-          keyboardShouldPersistTaps="handled"
-        >
-          <LoginCard
-            email={email}
-            password={password}
-            submitting={submitting}
-            error={error}
-            onChangeEmail={setEmail}
-            onChangePassword={setPassword}
-            onSubmit={handleSubmit}
-          />
-        </ScrollView>
+        <View style={{ flex: 1 }}>
+          {/* Animated Background */}
+          <AnimatedBackground />
+          
+          <ScrollView
+            contentContainerStyle={styles.page}
+            keyboardShouldPersistTaps="handled"
+          >
+            <LoginCard
+              email={email}
+              password={password}
+              submitting={submitting}
+              error={error}
+              onChangeEmail={setEmail}
+              onChangePassword={setPassword}
+              onSubmit={handleSubmit}
+            />
+          </ScrollView>
+        </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );

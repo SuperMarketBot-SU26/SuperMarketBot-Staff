@@ -8,3 +8,5 @@
 export * from "./icons";
 
 export { InlineBanner } from "./InlineBanner";
+export { AnimatedButton } from "./AnimatedButton";
+export { CustomHeader } from "./CustomHeader";

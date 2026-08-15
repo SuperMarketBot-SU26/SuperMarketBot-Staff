@@ -20,6 +20,7 @@ import { MapPlaceholder } from "./components/MapPlaceholder";
 import { InlineBanner } from "@/shared/ui";
 import { RobotCard } from "../robots/components/RobotCard";
 import { SummaryStrip } from "../robots/components/SummaryStrip";
+import { CustomHeader } from "@/shared/ui";
 
 export default function FleetScreen() {
   const router = useRouter();
@@ -33,31 +34,17 @@ export default function FleetScreen() {
 
   return (
     <View style={[styles.page, { backgroundColor: "#f7faf7" }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: "#ffffff",
-            borderBottomColor: "rgba(20,83,45,0.12)",
-          },
-        ]}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerText}>
-            <View style={styles.titleRow}>
-              <Text style={[styles.headerTitle, { color: "#11201a" }]}>
-                Đội Robot Siêu Thị
+      <CustomHeader title="Đội Robot Siêu Thị" subtitle="STAFF OPS" />
+
+
+      <View style={[styles.header, { backgroundColor: "#ffffff", borderBottomWidth: 1, borderBottomColor: "rgba(20,83,45,0.12)" }]}>
+        <View style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View>
+              <Text style={[styles.headerSubtitle, { color: "#4a5a52", fontSize: 16, fontWeight: '500' }]}>
+                {initialLoading
+                  ? "Đang kết nối..."
+                  : `${onlineCount}/${totalCount} robot đang kết nối`}
               </Text>
-              <View style={[styles.tealTag, { backgroundColor: "#dcfce7" }]}>
-                <Text style={[styles.tealTagText, { color: "#166534" }]}>STAFF OPS</Text>
-              </View>
-            </View>
-            <Text style={[styles.headerSubtitle, { color: "#4a5a52" }]}>
-              {initialLoading
-                ? "Đang kết nối..."
-                : `${onlineCount}/${totalCount} robot đang kết nối`}
-            </Text>
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
