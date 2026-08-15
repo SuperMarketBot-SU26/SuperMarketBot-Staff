@@ -20,14 +20,17 @@ import "react-native-reanimated";
 
 import { palette, ThemeProvider, useThemeContext } from "@/shared/theme";
 import { AuthProvider, useAuth } from "@/features/auth";
+import { StaffRealtimeProvider } from "@/shared/realtime/StaffRealtimeContext";
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <ThemeProvider>
-          <RootNavigation />
-        </ThemeProvider>
+        <StaffRealtimeProvider>
+          <ThemeProvider>
+            <RootNavigation />
+          </ThemeProvider>
+        </StaffRealtimeProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

@@ -57,19 +57,15 @@ export async function listRestockTasks(): Promise<StaffTask[]> {
  */
 export async function completeRestockTask(payload: {
   aisleId: number;
-  aisleNodeId: number;
+  aisleNodeId?: number;
   slotId?: number;
   quantityAdded?: number;
 }): Promise<boolean> {
-  try {
-    await apiRequest("/api/staff/tasks/complete", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    return true;
-  } catch {
-    return true;
-  }
+  await apiRequest("/api/staff/tasks/complete", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return true;
 }
 
 /**
@@ -80,27 +76,19 @@ export async function createRestockTask(payload: {
   emptyPercentage: number;
   imageUrl?: string;
 }): Promise<boolean> {
-  try {
-    await apiRequest("/api/shelf-scans/report-oos", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    return true;
-  } catch {
-    return true;
-  }
+  await apiRequest("/api/shelf-scans/report-oos", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return true;
 }
 
 /**
  * [DELETE] Remove a restock task.
  */
 export async function deleteRestockTask(taskId: number): Promise<boolean> {
-  try {
-    await apiRequest(`/api/staff/tasks/${taskId}`, {
-      method: "DELETE",
-    });
-    return true;
-  } catch {
-    return true;
-  }
+  await apiRequest(`/api/staff/tasks/${taskId}`, {
+    method: "DELETE",
+  });
+  return true;
 }

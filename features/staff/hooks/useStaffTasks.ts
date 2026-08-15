@@ -2,12 +2,12 @@
  * `useStaffTasks` — fetches the staff's pending restock tasks.
  *
  * Same shape contract as `useRobotList`: returns a tuple of state + reload
- * helpers. We don't auto-refresh on a timer — the staff screen has its own
- * pull-to-refresh, and the BE doesn't currently emit task changes over a
- * push channel.
+ * helpers. StaffHub increments a revision whenever AI Vision creates or
+ * updates a shelf alert, so the list refreshes without polling.
  */
 import { listRestockTasks, type StaffTask } from "@/shared/api";
 import { useApiErrorMessage } from "@/shared/hooks";
+import { useStaffRealtime } from "@/shared/realtime/StaffRealtimeContext";
 import { useCallback, useEffect, useState } from "react";
 
 export interface StaffTaskState {
@@ -24,6 +24,7 @@ export function useStaffTasks(): StaffTaskState {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const message = useApiErrorMessage();
+  const { revision } = useStaffRealtime();
 
   const load = useCallback(async () => {
     try {
@@ -34,6 +35,10 @@ export function useStaffTasks(): StaffTaskState {
       setError(message(e));
     }
   }, [message]);
+
+  useEffect(() => {
+    if (revision > 0) void load();
+  }, [revision, load]);
 
   useEffect(() => {
     let cancelled = false;

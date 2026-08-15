@@ -17,6 +17,7 @@
  */
 import { useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -37,6 +38,7 @@ import {
   deriveAislePosition,
 } from "./components/RestockPingMap";
 import { RestockInfoCard } from "./components/RestockInfoCard";
+import { completeRestockTask } from "@/shared/api/tasks";
 
 /**
  * Map-units for the centre fallback, shared with the rest of the map
@@ -57,6 +59,9 @@ export default function RestockLocationScreen() {
     shelfLocation,
     productName,
     emptyPercentage,
+    aisleId,
+    aisleNodeId,
+    slotId,
   } = useLocalSearchParams<{
     title?: string;
     detail?: string;
@@ -68,9 +73,13 @@ export default function RestockLocationScreen() {
   shelfLocation?: string;
   productName?: string;
   emptyPercentage?: string;
+  aisleId?: string;
+  aisleNodeId?: string;
+  slotId?: string;
   }>();
 
   const [resolved, setResolved] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const priorityKey: "urgent" | "high" =
     priority === "urgent" ? priority : "high";
@@ -91,9 +100,26 @@ export default function RestockLocationScreen() {
   const aisle = deriveAislePosition(slot);
   const tooltipCaption = `Kệ ${aisle.aisleLabel[0]} — ${fallbackLocation}`;
 
-  const handleResolved = () => {
-    setResolved(true);
-    setTimeout(() => router.back(), 350);
+  const handleResolved = async () => {
+    const parsedAisleId = Number(aisleId);
+    if (!Number.isInteger(parsedAisleId) || parsedAisleId <= 0) {
+      Alert.alert("Không thể hoàn tất", "Cảnh báo thiếu Aisle ID hợp lệ.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await completeRestockTask({
+        aisleId: parsedAisleId,
+        aisleNodeId: Number(aisleNodeId) > 0 ? Number(aisleNodeId) : undefined,
+        slotId: Number(slotId) > 0 ? Number(slotId) : undefined,
+      });
+      setResolved(true);
+      setTimeout(() => router.back(), 350);
+    } catch (error) {
+      Alert.alert("Không thể hoàn tất", error instanceof Error ? error.message : "Backend không xác nhận cập nhật kệ.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -211,11 +237,11 @@ export default function RestockLocationScreen() {
           ]}
           onPress={handleResolved}
           activeOpacity={0.85}
-          disabled={resolved}
+          disabled={resolved || submitting}
         >
           <CheckCircleIcon size={18} color="#ffffff" />
           <Text style={styles.primaryBtnText}>
-            {resolved ? "Đã đánh dấu xong" : "Đã xử lý"}
+            {resolved ? "Đã cập nhật Backend" : submitting ? "Đang cập nhật…" : "Đã xử lý"}
           </Text>
         </TouchableOpacity>
       </View>
