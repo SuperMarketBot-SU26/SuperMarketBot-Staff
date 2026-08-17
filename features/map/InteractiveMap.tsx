@@ -8,6 +8,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { NormalizedRobot } from '@/shared/api/robots';
+import { type AisleDensityDto } from '@/shared/api/types';
 import { MapCanvas } from '../staff/map/components/MapCanvas';
 import { makeProjection } from '../staff/map/lib/map';
 
@@ -15,9 +16,10 @@ interface MapProps {
   showHeatmap: boolean;
   showRobots: boolean;
   robotsData?: NormalizedRobot[];
+  densities?: AisleDensityDto[];
 }
 
-export function InteractiveMap({ showHeatmap, showRobots, robotsData }: MapProps) {
+export function InteractiveMap({ showHeatmap, showRobots, robotsData, densities }: MapProps) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -73,6 +75,7 @@ export function InteractiveMap({ showHeatmap, showRobots, robotsData }: MapProps
         <Animated.View style={[styles.mapContainer, animatedStyle]}>
           <MapCanvas 
             robots={showRobots && robotsData ? robotsData : []} 
+            densities={densities}
             projection={projection} 
             showHeatmap={showHeatmap}
             width={400}

@@ -35,4 +35,4 @@ export type { OptimizeRouteRequest, OptimizeRouteResponse } from "./map";
 
 export * as AuthApi from "./auth";
 export { API_BASE_URL } from "./config";
-
+export { getAisleDensities } from "./aisles";

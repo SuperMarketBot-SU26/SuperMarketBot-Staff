@@ -4,3 +4,5 @@ export { useFleetMap } from "./useFleetMap";
 export type { FleetMapState } from "./useFleetMap";
 export { useStaffTasks } from "./useStaffTasks";
 export type { StaffTaskState } from "./useStaffTasks";
+export { useAisleDensities } from "./useAisleDensities";
+export type { AisleDensitiesState } from "./useAisleDensities";

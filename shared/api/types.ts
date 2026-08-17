@@ -210,3 +210,17 @@ export interface MapFloorplanDto {
   edges: MapEdgeDto[];
   semanticObjects: MapSemanticObjectDto[];
 }
+
+// ─── Aisles / Density ──────────────────────────────────────────────────────
+export interface AisleDensityDto {
+  aisleId: number;
+  aisleCode: string;
+  aisleName?: string;
+  latestScanId?: number;
+  scannedAt?: string;
+  densityPercentage: number;
+  emptyPercentage: number;
+  needsRestock: boolean;
+  imageUrl?: string;
+  densityColor: string;
+}

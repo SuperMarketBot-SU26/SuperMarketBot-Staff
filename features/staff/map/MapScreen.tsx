@@ -43,6 +43,7 @@ import {
 } from "@/shared/ui";
 import type { NormalizedRobot } from "@/shared/api";
 import { useRobotList } from "./hooks";
+import { useAisleDensities } from "@/features/staff/hooks";
 import { MapCanvas } from "./components";
 import {
   makeProjection,
@@ -248,7 +249,13 @@ export default function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isDark = useIsDark();
-  const { robots, refreshing, onRefresh } = useRobotList();
+  const { robots, refreshing: robotsRefreshing, onRefresh: onRefreshRobots } = useRobotList();
+  const { densities, refreshing: densitiesRefreshing, onRefresh: onRefreshDensities } = useAisleDensities();
+
+  const refreshing = robotsRefreshing || densitiesRefreshing;
+  const onRefresh = useCallback(() => {
+    Promise.all([onRefreshRobots(), onRefreshDensities()]);
+  }, [onRefreshRobots, onRefreshDensities]);
 
   const [legendVisible, setLegendVisible] = useState(false);
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
@@ -380,6 +387,7 @@ export default function MapScreen() {
         <Animated.View style={[styles.viewport, contentStyle]}>
           <MapCanvas
             robots={robotList}
+            densities={densities || []}
             projection={projection}
             highlightedCode={null}
             selectedZoneId={selectedZone?.id}

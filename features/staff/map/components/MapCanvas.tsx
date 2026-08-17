@@ -28,11 +28,12 @@ import {
   projectRobot,
   statusHexFor,
 } from "../lib/map";
-import type { NormalizedRobot } from "@/shared/api";
+import type { NormalizedRobot, AisleDensityDto } from "@/shared/api";
 import { useIsDark } from "@/shared/theme";
 
 interface MapCanvasProps {
   robots: NormalizedRobot[];
+  densities?: AisleDensityDto[];
   projection: MapProjection;
   highlightedCode?: string | null;
   selectedZoneId?: string | null;
@@ -47,6 +48,7 @@ interface MapCanvasProps {
 
 export function MapCanvas({
   robots,
+  densities = [],
   projection,
   highlightedCode,
   selectedZoneId,
@@ -282,10 +284,16 @@ export function MapCanvas({
                   const segH = isHoriz ? zone.height : zone.height / segments;
                   const segX = zone.x + (isHoriz ? i * segW : 0);
                   const segY = zone.y + (isHoriz ? 0 : i * segH);
-                  // Generate pseudo-random density based on zone.id and index
-                  const heatLevels = ['rgba(239, 68, 68, 0.6)', 'rgba(249, 115, 22, 0.6)', 'rgba(34, 197, 94, 0.6)']; // Red, Orange, Green
-                  const charCode = zone.id.charCodeAt(zone.id.length - 1) + i * 7;
-                  const color = heatLevels[charCode % 3];
+                  // Fetch real density data from the passed densities array
+                  const densityData = densities.find((d) => d.aisleCode === zone.id);
+                  let color = "rgba(100, 116, 139, 0.3)"; // default fallback (slate)
+
+                  if (densityData?.densityColor) {
+                    if (densityData.densityColor === "red") color = "rgba(239, 68, 68, 0.6)";
+                    else if (densityData.densityColor === "yellow") color = "rgba(234, 179, 8, 0.6)";
+                    else if (densityData.densityColor === "green") color = "rgba(34, 197, 94, 0.6)";
+                    else color = densityData.densityColor; // fallback if it's already a valid hex/rgba
+                  }
 
                   return (
                     <Rect
