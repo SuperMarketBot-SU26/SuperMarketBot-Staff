@@ -28,20 +28,28 @@ export function mapRestockPriority(
   return "high";
 }
 
+export function cleanShelfLocation(loc?: string): string {
+  if (!loc) return "";
+  return loc
+    .replace(/\s*[-·]\s*Tầng\s*\d+/gi, "")
+    .replace(/\s*Tầng\s*\d+/gi, "")
+    .trim();
+}
+
 export function toStaffTask(t: RestockTaskDto): StaffTask {
+  const density = Math.max(0, Math.min(100, Math.round(100 - t.emptyPercentage)));
   return {
     id: t.scanId,
     category: "hangHoa",
     priority: mapRestockPriority(t.priority),
     isError: isRestockError(t),
     title: t.productName,
-    detail: `${t.emptyPercentage}% trống · còn ${t.currentQuantity} · ${
-      t.hasWarehouseStock ? "có kho" : "hết kho"
-    }`,
-    location: t.shelfLocation,
+    detail: `Mật độ kệ: ${density}% · Cần bổ sung: ${t.emptyPercentage}%`,
+    location: cleanShelfLocation(t.shelfLocation),
     reportedAt: t.reportedAt,
     acknowledged: false,
     restock: t,
+    densityPercentage: density,
   };
 }
 
@@ -56,6 +64,8 @@ export async function listRestockTasks(): Promise<StaffTask[]> {
  * [COMPLETE] Mark restock task complete.
  */
 export async function completeRestockTask(payload: {
+  scanId?: number;
+  shelfId?: number;
   aisleId: number;
   aisleNodeId?: number;
   slotId?: number;
@@ -63,7 +73,7 @@ export async function completeRestockTask(payload: {
 }): Promise<boolean> {
   await apiRequest("/api/staff/tasks/complete", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
   return true;
 }
@@ -78,7 +88,7 @@ export async function createRestockTask(payload: {
 }): Promise<boolean> {
   await apiRequest("/api/shelf-scans/report-oos", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
   return true;
 }

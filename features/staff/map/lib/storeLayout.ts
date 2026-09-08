@@ -50,128 +50,124 @@ export interface LegendItem {
   type: "corner" | "stocking" | "dock" | "zone";
 }
 
-/* ─── 4 Zones (7 Shelves total) ─── */
-export const ZONES: Zone[] = [
-  // ── ZONE 2 (Top-Left): 2 shelves ──
-  {
-    id: "zone-2-top",
-    zoneNumber: 2,
-    label: "2",
-    name: "Kệ 2 - Nông sản A",
-    category: "Thực phẩm tươi",
-    x: 0.42,
-    y: 0.02,
-    width: 0.75,
-    height: 0.38,
-    fill: "rgba(34, 197, 94, 0.15)",
-    stroke: "#16a34a",
-    strokeWidth: 0.025,
-    fontSize: 0.18,
-    description: "Rau củ quả tươi sạch",
-  },
-  {
-    id: "zone-2-left",
-    zoneNumber: 2,
-    label: "2",
-    name: "Kệ 2 - Nông sản B",
-    category: "Trái cây nhập khẩu",
-    x: 0.02,
-    y: 0.42,
-    width: 0.38,
-    height: 0.75,
-    fill: "rgba(34, 197, 94, 0.15)",
-    stroke: "#16a34a",
-    strokeWidth: 0.025,
-    fontSize: 0.18,
-    description: "Trái cây mùa vụ",
-  },
+/* ─── 6 Official Shelves (Tag #1 to #6 across Aisles A01, B01, C01) ─── */
+export interface StoreShelf {
+  shelfId: number;
+  arucoTag: number;
+  aisleCode: string;
+  name: string;
+  category: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  themeColor: string;
+  themeBg: string;
+}
 
-  // ── ZONE 1 (Top-Right): 2 shelves ──
+export const SHELVES_6: StoreShelf[] = [
+  // ── DÃY A01: Đồ Ăn Vặt & Nước Giải Khát (Xanh dương / Indigo) ──
   {
-    id: "zone-1-top",
-    zoneNumber: 1,
-    label: "1",
-    name: "Kệ 1 - Đồ uống A",
-    category: "Giải khát",
+    shelfId: 1,
+    arucoTag: 1,
+    aisleCode: "A01",
+    name: "Kệ 1 - Đồ Ăn Vặt & Bánh Kẹo",
+    category: "Bánh Kẹo & Snack",
     x: 1.8,
-    y: 0.02,
+    y: 0.04,
     width: 0.75,
     height: 0.38,
-    fill: "rgba(59, 130, 246, 0.15)",
-    stroke: "#2563eb",
-    strokeWidth: 0.025,
-    fontSize: 0.18,
-    description: "Nước giải khát & lon đóng chai",
+    themeColor: "#2563eb",
+    themeBg: "rgba(37, 99, 235, 0.12)",
   },
   {
-    id: "zone-1-right",
-    zoneNumber: 1,
-    label: "1",
-    name: "Kệ 1 - Bánh kẹo B",
-    category: "Snack & Bánh",
-    x: 2.6,
+    shelfId: 2,
+    arucoTag: 2,
+    aisleCode: "A01",
+    name: "Kệ 2 - Nước Giải Khát & Đồ Uống",
+    category: "Nước Giải Khát",
+    x: 2.58,
     y: 0.42,
     width: 0.38,
     height: 0.75,
-    fill: "rgba(59, 130, 246, 0.15)",
-    stroke: "#2563eb",
-    strokeWidth: 0.025,
-    fontSize: 0.18,
-    description: "Bánh kẹo nhập khẩu",
+    themeColor: "#2563eb",
+    themeBg: "rgba(37, 99, 235, 0.12)",
   },
 
-  // ── ZONE 3 (Bottom-Left): 2 shelves ──
+  // ── DÃY B01: Thực Phẩm Tươi Sống & Đóng Gói (Xanh lá / Emerald) ──
   {
-    id: "zone-3-left",
-    zoneNumber: 3,
-    label: "3",
-    name: "Kệ 3 - Hóa mỹ phẩm A",
-    category: "Hóa mỹ phẩm",
-    x: 0.02,
-    y: 1.75,
-    width: 0.38,
-    height: 0.75,
-    fill: "rgba(234, 179, 8, 0.15)",
-    stroke: "#ca8a04",
-    strokeWidth: 0.025,
-    fontSize: 0.18,
-    description: "Dầu gội & sữa tắm",
-  },
-  {
-    id: "zone-3-bottom",
-    zoneNumber: 3,
-    label: "3",
-    name: "Kệ 3 - Hóa mỹ phẩm B",
-    category: "Chăm sóc cá nhân",
+    shelfId: 4,
+    arucoTag: 4,
+    aisleCode: "B01",
+    name: "Kệ 4 - Mì Ăn Liền & Đóng Gói",
+    category: "Mì & Thực Phẩm Khô",
     x: 0.42,
-    y: 2.6,
+    y: 0.04,
     width: 0.75,
     height: 0.38,
-    fill: "rgba(234, 179, 8, 0.15)",
-    stroke: "#ca8a04",
-    strokeWidth: 0.025,
-    fontSize: 0.18,
-    description: "Chăm sóc da & gia đình",
+    themeColor: "#16a34a",
+    themeBg: "rgba(22, 163, 74, 0.12)",
+  },
+  {
+    shelfId: 3,
+    arucoTag: 3,
+    aisleCode: "B01",
+    name: "Kệ 3 - Thực Phẩm Tươi Sống",
+    category: "Thực Phẩm Tươi",
+    x: 0.04,
+    y: 0.42,
+    width: 0.38,
+    height: 0.75,
+    themeColor: "#16a34a",
+    themeBg: "rgba(22, 163, 74, 0.12)",
   },
 
-  // ── ZONE 4 (Center): 1 vertical shelf ──
+  // ── DÃY C01: Đồ Gia Dụng & Gia Vị (Cam ấm / Amber) ──
   {
-    id: "zone-4-center",
-    zoneNumber: 4,
-    label: "4",
-    name: "Kệ 4 - Gia dụng & Khuyến mãi",
-    category: "Hàng gia dụng",
+    shelfId: 5,
+    arucoTag: 5,
+    aisleCode: "C01",
+    name: "Kệ 5 - Đồ Gia Dụng & Tiện Ích",
+    category: "Đồ Gia Dụng",
     x: 1.3,
     y: 1.05,
     width: 0.4,
     height: 0.85,
-    fill: "rgba(239, 68, 68, 0.15)",
-    stroke: "#dc2626",
-    strokeWidth: 0.025,
-    fontSize: 0.18,
-    description: "Sản phẩm khuyến mãi hot",
+    themeColor: "#d97706",
+    themeBg: "rgba(217, 119, 6, 0.12)",
+  },
+  {
+    shelfId: 6,
+    arucoTag: 6,
+    aisleCode: "C01",
+    name: "Kệ 6 - Gia Vị & Trà",
+    category: "Gia Vị & Trà",
+    x: 0.04,
+    y: 1.75,
+    width: 0.38,
+    height: 0.75,
+    themeColor: "#d97706",
+    themeBg: "rgba(217, 119, 6, 0.12)",
   },
 ];
+
+// Compatibility ZONES array for any legacy references
+export const ZONES: Zone[] = SHELVES_6.map((s) => ({
+  id: `shelf-${s.shelfId}`,
+  zoneNumber: s.shelfId,
+  label: `K${s.shelfId}`,
+  name: s.name,
+  category: s.category,
+  x: s.x,
+  y: s.y,
+  width: s.width,
+  height: s.height,
+  fill: s.themeBg,
+  stroke: s.themeColor,
+  strokeWidth: 0.025,
+  fontSize: 0.1,
+  description: s.name,
+}));
 
 /* ─── Cashier desk ("Thu Ngan") ─── */
 export const CASHIER = {

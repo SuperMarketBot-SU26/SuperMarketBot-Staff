@@ -1,38 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { CustomHeader, AnimatedButton } from '@/shared/ui';
+import { ShelfDensityOverview } from '@/features/staff/map/components/ShelfDensityOverview';
 import { Ionicons } from '@expo/vector-icons';
 import { listRestockTasks, StaffTask } from '@/shared/api/tasks';
 import { listRobots } from '@/shared/api/robots';
+import { useStaffRealtime } from '@/shared/realtime/StaffRealtimeContext';
 
 export default function StaffIndexPage() {
   const router = useRouter();
   const [taskCount, setTaskCount] = useState(0);
   const [recentTasks, setRecentTasks] = useState<StaffTask[]>([]);
   const [robotCount, setRobotCount] = useState(0);
+  const [primaryRobot, setPrimaryRobot] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [tasks, robots] = await Promise.all([
-          listRestockTasks(),
-          listRobots()
-        ]);
-        setTaskCount(tasks.length);
-        setRecentTasks(tasks.slice(0, 5));
-        const activeRobots = robots.filter(r => r.status === 'active' || r.status === 'standby').length;
-        setRobotCount(activeRobots);
-      } catch (e) {
-        console.log(e);
-      } finally {
-        setLoading(false);
-      }
+  const { revision } = useStaffRealtime();
+
+  const loadData = useCallback(async () => {
+    try {
+      const [tasks, robots] = await Promise.all([
+        listRestockTasks(),
+        listRobots()
+      ]);
+      setTaskCount(tasks.length);
+      setRecentTasks(tasks.slice(0, 5));
+      const activeRobots = robots.filter(r => r.status === 'active' || r.status === 'standby').length;
+      setRobotCount(activeRobots);
+      const rb1 = robots.find(r => r.code === 'RB0001' || r.code === 'RB001') || robots[0] || null;
+      setPrimaryRobot(rb1);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  useEffect(() => {
+    loadData();
+  }, [revision, loadData]);
 
   return (
     <View style={styles.container}>
@@ -61,8 +75,61 @@ export default function StaffIndexPage() {
         </View>
       </Animated.View>
 
+      {/* 6 Shelves Density Overview on Home */}
+      <Animated.View entering={FadeInDown.delay(300).duration(600).springify()} style={{ marginBottom: 20 }}>
+        <ShelfDensityOverview />
+      </Animated.View>
+
+      {/* Dedicated Robot RB0001 Live Status Card */}
+      <Animated.View entering={FadeInDown.delay(350).duration(600).springify()} style={styles.robotCard}>
+        <View style={styles.robotTopRow}>
+          <View style={styles.robotIdentity}>
+            <View style={styles.robotAvatarBox}>
+              <Ionicons name="hardware-chip" size={20} color="#15803d" />
+            </View>
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.robotNameText}>
+                  {primaryRobot?.name || 'SmartMarketBot 01'}
+                </Text>
+                <View style={styles.robotCodePill}>
+                  <Text style={styles.robotCodePillText}>{primaryRobot?.code || 'RB0001'}</Text>
+                </View>
+              </View>
+              <Text style={styles.robotModeText}>
+                Trạng thái: <Text style={{ color: '#15803d', fontWeight: '700' }}>{primaryRobot?.mode || 'IDLE'} (Sẵn sàng)</Text>
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.robotBatteryBadge}>
+            <Text style={styles.robotBatteryVal}>
+              🔋 {primaryRobot?.batteryLevel ?? 100}%
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.robotBottomRow}>
+          <Text style={styles.robotLocText}>
+            📍 Tọa độ: ({primaryRobot?.position?.x?.toFixed(1) ?? '1.5'}, {primaryRobot?.position?.y?.toFixed(1) ?? '1.5'})
+          </Text>
+          <Pressable
+            onPress={() => router.push('/staff/map')}
+            style={styles.robotMapBtn}
+          >
+            <Text style={styles.robotMapBtnText}>Theo dõi trên bản đồ →</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+
       <Animated.View entering={FadeInDown.delay(400).duration(600).springify()} style={styles.actionsContainer}>
         <Text style={styles.sectionTitle}>Tác vụ nhanh</Text>
+        <AnimatedButton 
+          title="Xem mật độ 6 kệ hàng & Đội Robot" 
+          onPress={() => router.push('/staff/fleet')}
+          color="#15803d"
+          style={{ marginBottom: 16 }}
+        />
         <AnimatedButton 
           title="Xem bản đồ Heatmap" 
           onPress={() => router.push('/staff/map')}
@@ -127,6 +194,98 @@ export default function StaffIndexPage() {
 }
 
 const styles = StyleSheet.create({
+  robotCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(20,83,45,0.12)',
+    padding: 16,
+    marginBottom: 20,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  robotTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  robotIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  robotAvatarBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  robotNameText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#11201a',
+  },
+  robotCodePill: {
+    backgroundColor: '#11201a',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  robotCodePillText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  robotModeText: {
+    fontSize: 12,
+    color: '#4b5563',
+    marginTop: 2,
+  },
+  robotBatteryBadge: {
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  robotBatteryVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#15803d',
+  },
+  robotBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  robotLocText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  robotMapBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(21,128,61,0.08)',
+  },
+  robotMapBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803d',
+  },
+
   container: {
     flex: 1,
     backgroundColor: '#f7faf7',
@@ -261,4 +420,4 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 });
-
+

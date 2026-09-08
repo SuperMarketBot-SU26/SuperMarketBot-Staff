@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function ProfilePage() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -33,7 +33,7 @@ export default function ProfilePage() {
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
             <Ionicons name="mail-outline" size={24} color="#666" style={styles.infoIcon} />
-            <Text style={styles.infoText}>staff@smartmarket.com</Text>
+            <Text style={styles.infoText}>{user?.email || 'staff@smartmarket.local'}</Text>
           </View>
           <View style={styles.infoRow}>
             <Ionicons name="business-outline" size={24} color="#666" style={styles.infoIcon} />

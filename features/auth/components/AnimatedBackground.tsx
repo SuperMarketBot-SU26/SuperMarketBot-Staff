@@ -70,9 +70,11 @@ function Blob({
 
   return (
     <Animated.View
+      pointerEvents="none"
       style={[
         {
           position: "absolute",
+          pointerEvents: "none" as any,
           width: size,
           height: size,
           borderRadius: size / 2,
@@ -95,7 +97,7 @@ export function AnimatedBackground() {
   
   const bgColor = "#ffffff"; // Always pure white background
   return (
-    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: bgColor, overflow: "hidden" }]}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: bgColor, overflow: "hidden", pointerEvents: "none" as any }]}>
       <Blob
         size={width * 1.2}
         color={color1}

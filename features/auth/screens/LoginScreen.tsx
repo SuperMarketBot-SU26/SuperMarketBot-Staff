@@ -30,7 +30,7 @@ export default function LoginScreen() {
   const auth = useAuth();
 
   const [email, setEmail] = useState("staff@smartmarket.local");
-  const [password, setPassword] = useState("123456");
+  const [password, setPassword] = useState("Admin@123");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +41,7 @@ export default function LoginScreen() {
     setSubmitting(true);
     try {
       await auth.login(email.trim(), password);
-      router.replace("/staff/index" as any);
+      router.replace("/staff" as any);
     } catch (e) {
       const msg =
         e instanceof ApiError
@@ -55,32 +55,41 @@ export default function LoginScreen() {
     }
   }
 
+  const content = (
+    <View style={{ flex: 1 }}>
+      {/* Animated Background */}
+      <AnimatedBackground />
+      
+      <ScrollView
+        style={{ flex: 1, zIndex: 10 }}
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="handled"
+      >
+        <LoginCard
+          email={email}
+          password={password}
+          submitting={submitting}
+          error={error}
+          onChangeEmail={setEmail}
+          onChangePassword={setPassword}
+          onSubmit={handleSubmit}
+        />
+      </ScrollView>
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={{ flex: 1 }}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View style={{ flex: 1 }}>
-          {/* Animated Background */}
-          <AnimatedBackground />
-          
-          <ScrollView
-            contentContainerStyle={styles.page}
-            keyboardShouldPersistTaps="handled"
-          >
-            <LoginCard
-              email={email}
-              password={password}
-              submitting={submitting}
-              error={error}
-              onChangeEmail={setEmail}
-              onChangePassword={setPassword}
-              onSubmit={handleSubmit}
-            />
-          </ScrollView>
-        </View>
-      </TouchableWithoutFeedback>
+      {Platform.OS === "web" ? (
+        content
+      ) : (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          {content}
+        </TouchableWithoutFeedback>
+      )}
     </KeyboardAvoidingView>
   );
 }

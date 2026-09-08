@@ -1,15 +1,39 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/features/auth';
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useStaffRealtime } from '@/shared/realtime/StaffRealtimeContext';
+import { listRestockTasks } from '@/shared/api/tasks';
 
 export default function StaffLayout() {
   const { status } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { revision } = useStaffRealtime();
+  const [pendingCount, setPendingCount] = useState<number>(0);
+
+  const fetchPendingTasks = useCallback(async () => {
+    try {
+      const tasks = await listRestockTasks();
+      setPendingCount(tasks.length);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchPendingTasks();
+    }
+  }, [status, revision, fetchPendingTasks]);
+
+  useEffect(() => {
+    const timer = setInterval(fetchPendingTasks, 5000);
+    return () => clearInterval(timer);
+  }, [fetchPendingTasks]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -57,6 +81,18 @@ export default function StaffLayout() {
         name="notifications"
         options={{
           title: 'Thông báo',
+          tabBarBadge: pendingCount > 0 ? pendingCount : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: '#dc2626',
+            color: '#ffffff',
+            fontSize: 10,
+            fontWeight: '700',
+            minWidth: 18,
+            height: 18,
+            borderRadius: 9,
+            lineHeight: 18,
+            textAlign: 'center',
+          },
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="notifications-outline" size={size} color={color} />
           ),
@@ -83,4 +119,4 @@ export default function StaffLayout() {
       <Tabs.Screen name="notification-detail" options={{ href: null }} />
     </Tabs>
   );
-}
+}

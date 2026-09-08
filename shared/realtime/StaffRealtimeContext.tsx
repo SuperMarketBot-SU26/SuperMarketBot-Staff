@@ -7,18 +7,30 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
 } from "react";
-import { Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable, Platform } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 type PatrolEventName =
   | "ShelfPatrolScanStarted"
   | "ShelfPatrolScanCompleted"
   | "OutOfStockAlert"
-  | "ShelfPatrolScanFailed";
+  | "ShelfPatrolScanFailed"
+  | "ShelfDensityUpdated"
+  | "ShelfRestocked";
 
 export interface StaffRealtimeEvent {
   name: PatrolEventName;
   payload: Record<string, unknown>;
+  receivedAt: string;
+}
+
+interface ActiveAlertBanner {
+  shelf: string;
+  occupancy: string | number;
+  empty: string | number;
   receivedAt: string;
 }
 
@@ -34,72 +46,253 @@ const StaffRealtimeContext = createContext<StaffRealtimeValue>({
   lastEvent: null,
 });
 
+function playAlertChime() {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
+        osc.frequency.setValueAtTime(880.0, ctx.currentTime + 0.15); // A5
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      }
+    } catch {
+      // AudioContext may require user interaction first
+    }
+  }
+}
+
 export function StaffRealtimeProvider({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
+  const router = useRouter();
   const [connected, setConnected] = useState(false);
   const [revision, setRevision] = useState(0);
   const [lastEvent, setLastEvent] = useState<StaffRealtimeEvent | null>(null);
+  const [activeBanner, setActiveBanner] = useState<ActiveAlertBanner | null>(null);
+  const bannerTimerRef = useRef<any>(null);
 
   useEffect(() => {
     if (status !== "authenticated") return;
     let mounted = true;
+
+    const isNgrok = API_BASE_URL.includes("ngrok");
+    const hubUrl = `${API_BASE_URL.replace(/\/$/, "")}/hubs/staff`;
+
     const connection = new SignalR.HubConnectionBuilder()
-      .withUrl(`${API_BASE_URL.replace(/\/$/, "")}/hubs/staff`, {
-        headers: { "ngrok-skip-browser-warning": "true" },
+      .withUrl(hubUrl, {
+        // Only attach headers for ngrok tunnels, avoid breaking browser websockets on localhost
+        ...(isNgrok ? { headers: { "ngrok-skip-browser-warning": "true" } } : {}),
+        transport: SignalR.HttpTransportType.WebSockets | SignalR.HttpTransportType.LongPolling,
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-      .configureLogging(SignalR.LogLevel.Warning)
+      .configureLogging(SignalR.LogLevel.Information)
       .build();
 
     const join = async () => {
-      if (connection.state === SignalR.HubConnectionState.Connected)
-        await connection.invoke("JoinStaffGroup");
-    };
-    const receive = (name: PatrolEventName, payload: Record<string, unknown>) => {
-      if (!mounted) return;
-      setLastEvent({ name, payload, receivedAt: new Date().toISOString() });
-      setRevision((value) => value + 1);
-      if (name === "OutOfStockAlert") {
-        const shelf = payload.shelfName ?? payload.nodeName ?? `Node ${payload.nodeId ?? "?"}`;
-        const occupancy = payload.occupancyRatePct ?? "?";
-        const empty = payload.emptySlotCount ?? "?";
-        Alert.alert(
-          "Cảnh báo cần nhập hàng",
-          `${shelf}\nMức còn hàng: ${occupancy}%\nVị trí trống: ${empty}`,
-        );
+      try {
+        if (connection.state === SignalR.HubConnectionState.Connected) {
+          await connection.invoke("JoinStaffGroup");
+          console.log("[StaffRealtime] Joined StaffGroup successfully");
+        }
+      } catch (err) {
+        console.warn("[StaffRealtime] JoinStaffGroup warning:", err);
       }
     };
+
+    const receive = (name: PatrolEventName, payload: Record<string, unknown>) => {
+      if (!mounted) return;
+      console.log(`[StaffRealtime] ⚡ Received event ${name}:`, payload);
+      setLastEvent({ name, payload, receivedAt: new Date().toISOString() });
+      setRevision((value) => value + 1);
+
+      if (name === "OutOfStockAlert") {
+        const shelf = String(payload.shelfName ?? payload.nodeName ?? `Kệ #${payload.nodeId ?? payload.shelfId ?? "?"}`);
+        const occupancy = payload.occupancyRatePct ?? payload.densityPercentage ?? "?";
+        const empty = payload.emptySlotCount ?? "?";
+
+        playAlertChime();
+
+        setActiveBanner({
+          shelf,
+          occupancy,
+          empty,
+          receivedAt: new Date().toLocaleTimeString("vi-VN"),
+        });
+
+        if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+        bannerTimerRef.current = setTimeout(() => {
+          if (mounted) setActiveBanner(null);
+        }, 9000);
+      }
+    };
+
     const events: PatrolEventName[] = [
       "ShelfPatrolScanStarted",
       "ShelfPatrolScanCompleted",
       "OutOfStockAlert",
       "ShelfPatrolScanFailed",
+      "ShelfDensityUpdated",
+      "ShelfRestocked",
     ];
     events.forEach((name) => connection.on(name, (payload) => receive(name, payload)));
+
     connection.onreconnecting(() => mounted && setConnected(false));
     connection.onreconnected(async () => {
       if (!mounted) return;
       setConnected(true);
-      await join().catch(() => undefined);
+      await join();
     });
     connection.onclose(() => mounted && setConnected(false));
-    connection.start().then(async () => {
-      if (!mounted) return;
-      setConnected(true);
-      await join();
-    }).catch((error) => console.warn("[StaffRealtime] connect failed", error));
+
+    connection
+      .start()
+      .then(async () => {
+        if (!mounted) return;
+        setConnected(true);
+        console.log("[StaffRealtime] Connected to StaffHub:", hubUrl);
+        await join();
+      })
+      .catch((error) => console.warn("[StaffRealtime] connect failed", error));
 
     return () => {
       mounted = false;
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
       events.forEach((name) => connection.off(name));
       connection.stop().catch(() => undefined);
     };
   }, [status]);
 
+  const handleBannerClick = () => {
+    setActiveBanner(null);
+    try {
+      router.push("/staff/notifications" as any);
+    } catch {
+      if (typeof window !== "undefined") {
+        window.location.pathname = "/staff/notifications";
+      }
+    }
+  };
+
   const value = useMemo(() => ({ connected, revision, lastEvent }), [connected, revision, lastEvent]);
-  return <StaffRealtimeContext.Provider value={value}>{children}</StaffRealtimeContext.Provider>;
+
+  return (
+    <StaffRealtimeContext.Provider value={value}>
+      {children}
+      {/* Floating Realtime Alert Notification Banner (High Z-Index) */}
+      {activeBanner && (
+        <View style={styles.bannerWrapper} pointerEvents="box-none">
+          <Pressable style={styles.bannerCard} onPress={handleBannerClick}>
+            <View style={styles.bannerIconBox}>
+              <Ionicons name="warning" size={26} color="#EF4444" />
+            </View>
+            <View style={styles.bannerContent}>
+              <View style={styles.bannerHeaderRow}>
+                <Text style={styles.bannerTitle}>🚨 CẢNH BÁO CẦN NHẬP HÀNG (REALTIME)</Text>
+                <Text style={styles.bannerTime}>{activeBanner.receivedAt}</Text>
+              </View>
+              <Text style={styles.bannerBody} numberOfLines={2}>
+                <Text style={{ fontWeight: "700", color: "#1E293B" }}>{activeBanner.shelf}</Text>
+                {" · "}Mức còn hàng: <Text style={{ fontWeight: "700", color: "#B45309" }}>{activeBanner.occupancy}%</Text>
+                {" · "}Trống: <Text style={{ fontWeight: "700", color: "#DC2626" }}>{activeBanner.empty} slot</Text>
+              </Text>
+              <Text style={styles.bannerAction}>Chạm để mở trang Thông Báo và xếp hàng ➔</Text>
+            </View>
+            <Pressable
+              style={styles.closeBtn}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                setActiveBanner(null);
+              }}
+            >
+              <Ionicons name="close" size={20} color="#64748B" />
+            </Pressable>
+          </Pressable>
+        </View>
+      )}
+    </StaffRealtimeContext.Provider>
+  );
 }
 
 export function useStaffRealtime() {
   return useContext(StaffRealtimeContext);
 }
+
+const styles = StyleSheet.create({
+  bannerWrapper: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    right: 16,
+    zIndex: 999999,
+    alignItems: "center",
+  },
+  bannerCard: {
+    width: "100%",
+    maxWidth: 620,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#EF4444",
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  bannerIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  bannerContent: {
+    flex: 1,
+  },
+  bannerHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  bannerTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#DC2626",
+    letterSpacing: 0.3,
+  },
+  bannerTime: {
+    fontSize: 11,
+    color: "#94A3B8",
+    fontWeight: "600",
+  },
+  bannerBody: {
+    fontSize: 13,
+    color: "#334155",
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  bannerAction: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2563EB",
+    marginTop: 4,
+  },
+  closeBtn: {
+    padding: 6,
+    marginLeft: 8,
+  },
+});

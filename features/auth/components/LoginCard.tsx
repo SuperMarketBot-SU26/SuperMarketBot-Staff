@@ -47,7 +47,7 @@ export function LoginCard({
       <BlurView
         intensity={80}
         tint="light"
-        style={styles.card}
+        style={[styles.card, { pointerEvents: "auto" as any }]}
       >
         {/* Brand */}
         <View style={styles.brandIcon}>
@@ -141,6 +141,7 @@ export function LoginCard({
 
 const styles = StyleSheet.create({
   cardContainer: {
+    zIndex: 20,
     borderRadius: DEVICE.borderRadius.card + 4,
     overflow: "hidden",
     marginHorizontal: 16,

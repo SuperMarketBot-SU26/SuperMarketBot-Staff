@@ -17,6 +17,7 @@ import { DEVICE, palette } from "@/shared/theme";
 import { type NormalizedRobot } from "@/shared/api";
 import { useRobotList, useFleetMap } from "./hooks";
 import { MapPlaceholder } from "./components/MapPlaceholder";
+import { ShelfDensityOverview } from "./components/ShelfDensityOverview";
 import { InlineBanner } from "@/shared/ui";
 import { RobotCard } from "../robots/components/RobotCard";
 import { SummaryStrip } from "../robots/components/SummaryStrip";
@@ -155,6 +156,9 @@ export default function FleetScreen() {
             <InlineBanner tone="error" title={error} />
           </View>
         ) : null}
+
+        {/* 6 Shelves Density Overview */}
+        <ShelfDensityOverview />
 
         {/* Robot list */}
         <View style={styles.robotListSection}>

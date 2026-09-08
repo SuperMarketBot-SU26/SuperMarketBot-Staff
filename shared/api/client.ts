@@ -170,7 +170,7 @@ export async function apiRequest<T>(
     return fetch(buildUrl(path, query), {
       method,
       headers: h,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
       signal,
     });
   };

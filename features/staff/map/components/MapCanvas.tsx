@@ -1,12 +1,14 @@
 /**
- * MapCanvas — Hardcoded SVG Store Floorplan & Robot Canvas.
+ * MapCanvas — Modern Supermarket Floorplan & Realtime Robot Telemetry Canvas.
  *
- * Implements clean 2D sketch layout with exact Zone 3 path from Paint diagram:
- * - Zone 3 U-notch step path around Shelf 3-left and Shelf 3-bottom
- * - Numbers (1, 2, 3, 4) centered INSIDE shelf boxes via translate(centerX, centerY)
- * - Corner dots (•) represent turns/junctions
- * - Cross-ticks (┿) represent Stocking Nodes
+ * 3m x 3m Supermarket Layout:
+ * - Dãy A01: Kệ 1 (ArUco #1, Bánh kẹo) & Kệ 2 (ArUco #2, Nước giải khát)
+ * - Dãy B01: Kệ 3 (ArUco #3, Thực phẩm tươi) & Kệ 4 (ArUco #4, Mì & Khô)
+ * - Dãy C01: Kệ 5 (ArUco #5, Gia dụng) & Kệ 6 (ArUco #6, Gia vị & Trà)
+ * - Quầy Thu Ngân & Cửa vào
+ * - Realtime Robot Telemetry (RB0001) with Directional Heading Radar Cone & Battery
  */
+import React from "react";
 import Svg, {
   Circle,
   G,
@@ -21,24 +23,26 @@ import {
   DOOR,
   NAV_NODES,
   PATH_SEGMENTS,
-  ZONES,
+  SHELVES_6,
+  type StoreShelf,
 } from "../lib/storeLayout";
 import {
   type MapProjection,
   projectRobot,
   statusHexFor,
 } from "../lib/map";
-import type { NormalizedRobot, AisleDensityDto } from "@/shared/api";
+import type { NormalizedRobot, AisleDensityDto, ShelfDensityDto } from "@/shared/api";
 import { useIsDark } from "@/shared/theme";
 
 interface MapCanvasProps {
   robots: NormalizedRobot[];
   densities?: AisleDensityDto[];
+  shelfDensities?: ShelfDensityDto[];
   projection: MapProjection;
   highlightedCode?: string | null;
   selectedZoneId?: string | null;
   onRobotPress?: (code: string) => void;
-  onZonePress?: (zone: any) => void;
+  onShelfPress?: (shelf: StoreShelf) => void;
   showLabels?: boolean;
   showDimensions?: boolean;
   showHeatmap?: boolean;
@@ -48,45 +52,48 @@ interface MapCanvasProps {
 
 export function MapCanvas({
   robots,
-  densities = [],
-  projection,
+  shelfDensities = [],
   highlightedCode,
-  selectedZoneId,
   onRobotPress,
-  onZonePress,
+  onShelfPress,
   showLabels = true,
   showDimensions = true,
   showHeatmap = false,
-  width,
-  height,
+  width = "100%",
+  height = "100%",
 }: MapCanvasProps) {
   const isDark = useIsDark();
 
-  /* Theme Styling — Pure White Card Integration */
-  const gridLineColor = "rgba(20,83,45,0.08)";
-  const gridMajorColor = "rgba(20,83,45,0.18)";
-  const wallStroke = "#14532d";
-  const dimColor = "#4a5a52";
-  const pathLineColor = "#16a34a";
-  const cornerDotFill = "#15803d";
-  const canvasBg = "#ffffff";
+  /* Modern Supermarket Architectural Styling */
+  const gridLineColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(20,83,45,0.07)";
+  const gridMajorColor = isDark ? "rgba(255,255,255,0.14)" : "rgba(20,83,45,0.16)";
+  const wallStroke = isDark ? "#38a169" : "#14532d";
+  const dimColor = isDark ? "#94a3b8" : "#4a5a52";
+  const pathLineColor = isDark ? "#48bb78" : "#16a34a";
+  const cornerDotFill = isDark ? "#2f855a" : "#15803d";
+  const canvasBg = isDark ? "#0f172a" : "#ffffff";
+  const floorTileBg = isDark ? "#1e293b" : "#f8faf9";
 
-  const vbX = showDimensions ? -0.4 : -0.1;
-  const vbY = showDimensions ? -0.4 : -0.1;
-  const vbW = showDimensions ? 3.8 : 3.2;
-  const vbH = showDimensions ? 3.9 : 3.3;
+  const vbX = showDimensions ? -0.35 : -0.1;
+  const vbY = showDimensions ? -0.35 : -0.1;
+  const vbW = showDimensions ? 3.7 : 3.2;
+  const vbH = showDimensions ? 3.8 : 3.3;
 
   return (
     <Svg
-      width={width ?? "100%"}
-      height={height ?? "100%"}
+      width={width}
+      height={height}
       viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
+      style={{ flex: 1 }}
     >
-      {/* ── 0. Background ── */}
+      {/* ── 0. Canvas Background ── */}
       <Rect x={vbX} y={vbY} width={vbW} height={vbH} fill={canvasBg} />
 
-      {/* ── 1. Grid (0.5m minor, 1.0m major) ── */}
-      <G opacity={0.75}>
+      {/* ── 1. Supermarket Floor Tile Area (0,0 to 3,3) ── */}
+      <Rect x={0} y={0} width={3} height={3} fill={floorTileBg} rx={0.04} />
+
+      {/* ── 2. Measurement Grid (0.5m minor, 1.0m major) ── */}
+      <G opacity={0.8}>
         {[0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0].map((v) => (
           <G key={`grid-${v}`}>
             <Line
@@ -105,78 +112,81 @@ export function MapCanvas({
         ))}
       </G>
 
-      {/* ── 2. Outer Dimension Lines (3 m) ── */}
+      {/* ── 3. Dimensions (3m x 3m Supermarket Layout) ── */}
       {showDimensions && (
         <G>
           {/* Top 3m Dimension */}
-          <Line x1={0} y1={-0.18} x2={3} y2={-0.18} stroke={dimColor} strokeWidth={0.012} />
-          <Line x1={0} y1={-0.24} x2={0} y2={-0.12} stroke={dimColor} strokeWidth={0.015} />
-          <Line x1={3} y1={-0.24} x2={3} y2={-0.12} stroke={dimColor} strokeWidth={0.015} />
-          <SvgText x={1.5} y={-0.24} fill={dimColor} fontSize={0.11} fontWeight="700" textAnchor="middle">
-            3 m
+          <Line x1={0} y1={-0.16} x2={3} y2={-0.16} stroke={dimColor} strokeWidth={0.012} />
+          <Line x1={0} y1={-0.22} x2={0} y2={-0.10} stroke={dimColor} strokeWidth={0.015} />
+          <Line x1={3} y1={-0.22} x2={3} y2={-0.10} stroke={dimColor} strokeWidth={0.015} />
+          <SvgText x={1.5} y={-0.22} fill={dimColor} fontSize={0.10} fontWeight="800" textAnchor="middle">
+            3.0 m (Lối vào & Dãy kệ)
           </SvgText>
 
           {/* Left 3m Dimension */}
-          <Line x1={-0.18} y1={0} x2={-0.18} y2={3} stroke={dimColor} strokeWidth={0.012} />
-          <Line x1={-0.24} y1={0} x2={-0.12} y2={0} stroke={dimColor} strokeWidth={0.015} />
-          <Line x1={-0.24} y1={3} x2={-0.12} y2={3} stroke={dimColor} strokeWidth={0.015} />
-          <SvgText x={-0.26} y={1.54} fill={dimColor} fontSize={0.11} fontWeight="700" textAnchor="end">
-            3 m
-          </SvgText>
-
-          {/* Bottom 3m Dimension */}
-          <Line x1={0} y1={3.38} x2={3} y2={3.38} stroke={dimColor} strokeWidth={0.012} />
-          <Line x1={0} y1={3.3} x2={0} y2={3.46} stroke={dimColor} strokeWidth={0.015} />
-          <Line x1={3} y1={3.3} x2={3} y2={3.46} stroke={dimColor} strokeWidth={0.015} />
-          <SvgText x={1.5} y={3.54} fill={dimColor} fontSize={0.11} fontWeight="700" textAnchor="middle">
-            3 m
+          <Line x1={-0.16} y1={0} x2={-0.16} y2={3} stroke={dimColor} strokeWidth={0.012} />
+          <Line x1={-0.22} y1={0} x2={-0.10} y2={0} stroke={dimColor} strokeWidth={0.015} />
+          <Line x1={-0.22} y1={3} x2={-0.10} y2={3} stroke={dimColor} strokeWidth={0.015} />
+          <SvgText x={-0.24} y={1.54} fill={dimColor} fontSize={0.10} fontWeight="800" textAnchor="end">
+            3.0 m
           </SvgText>
         </G>
       )}
 
-      {/* ── 3. Outer Walls & Door Entrance ── */}
+      {/* ── 4. Outer Boundary Walls & Entrance Door ── */}
       <G>
-        <Line x1={0} y1={0} x2={3} y2={0} stroke={wallStroke} strokeWidth={0.035} />
-        <Line x1={0} y1={0} x2={0} y2={3} stroke={wallStroke} strokeWidth={0.035} />
-        <Line x1={3} y1={0} x2={3} y2={3} stroke={wallStroke} strokeWidth={0.035} />
+        <Line x1={0} y1={0} x2={3} y2={0} stroke={wallStroke} strokeWidth={0.038} strokeLinecap="round" />
+        <Line x1={0} y1={0} x2={0} y2={3} stroke={wallStroke} strokeWidth={0.038} strokeLinecap="round" />
+        <Line x1={3} y1={0} x2={3} y2={3} stroke={wallStroke} strokeWidth={0.038} strokeLinecap="round" />
 
         {/* Bottom wall with entrance door gap */}
-        <Line x1={0} y1={3} x2={DOOR.x} y2={3} stroke={wallStroke} strokeWidth={0.035} />
-        <Line x1={DOOR.x + DOOR.width} y1={3} x2={3} y2={3} stroke={wallStroke} strokeWidth={0.035} />
+        <Line x1={0} y1={3} x2={DOOR.x} y2={3} stroke={wallStroke} strokeWidth={0.038} />
+        <Line x1={DOOR.x + DOOR.width} y1={3} x2={3} y2={3} stroke={wallStroke} strokeWidth={0.038} />
 
-        {/* Door swing line & Arrow */}
-        <Line x1={DOOR.x} y1={3} x2={DOOR.x + 0.25} y2={2.75} stroke={wallStroke} strokeWidth={0.02} />
-        <Line x1={1.375} y1={3.35} x2={1.375} y2={3.05} stroke={wallStroke} strokeWidth={0.018} />
-        <Path d="M 1.335,3.12 L 1.375,3.05 L 1.415,3.12" fill="none" stroke={wallStroke} strokeWidth={0.018} />
+        {/* Door Entry Marker */}
+        <Line x1={DOOR.x} y1={3} x2={DOOR.x + 0.22} y2={2.78} stroke="#16a34a" strokeWidth={0.02} />
+        <SvgText x={DOOR.x + 0.22} y={3.15} fill="#15803d" fontSize={0.075} fontWeight="800">
+          CỬA VÀO ➔
+        </SvgText>
       </G>
 
-      {/* ── 4. Cashier Counter ("Thu Ngan") ── */}
+      {/* ── 5. Cashier Desk ("THU NGÂN") ── */}
       <G>
         <Rect
           x={CASHIER.x}
           y={CASHIER.y}
           width={CASHIER.width}
           height={CASHIER.height}
-          fill={CASHIER.fill}
-          stroke={CASHIER.stroke}
-          strokeWidth={CASHIER.strokeWidth}
-          rx={0.02}
+          fill={isDark ? "rgba(51, 65, 85, 0.4)" : "rgba(100, 116, 139, 0.12)"}
+          stroke={isDark ? "#64748b" : "#475569"}
+          strokeWidth={0.022}
+          rx={0.03}
         />
         <G transform={`translate(${CASHIER.x + CASHIER.width / 2}, ${CASHIER.y + CASHIER.height / 2})`}>
           <SvgText
             x={0}
-            y={CASHIER.fontSize * 0.35}
-            fill={isDark ? "#e2e8f0" : "#0f172a"}
-            fontSize={CASHIER.fontSize}
-            fontWeight="800"
+            y={-0.03}
+            fill={isDark ? "#cbd5e1" : "#1e293b"}
+            fontSize={0.085}
+            fontWeight="900"
             textAnchor="middle"
           >
-            {CASHIER.label}
+            QUẦY THU NGÂN
+          </SvgText>
+          <SvgText
+            x={0}
+            y={0.06}
+            fill="#64748b"
+            fontSize={0.06}
+            fontWeight="600"
+            textAnchor="middle"
+          >
+            POS & Checkout
           </SvgText>
         </G>
       </G>
 
-      {/* ── 5. Navigation Paths & Lines ── */}
+      {/* ── 6. Navigation Waypoint Paths (Corridors) ── */}
       <G>
         {PATH_SEGMENTS.map((seg, idx) => (
           <Line
@@ -186,210 +196,253 @@ export function MapCanvas({
             x2={seg.to.x}
             y2={seg.to.y}
             stroke={pathLineColor}
-            strokeWidth={0.02}
+            strokeWidth={0.022}
             strokeLinecap="round"
             strokeLinejoin="round"
+            strokeDasharray="0.04, 0.02"
+            opacity={0.85}
           />
         ))}
 
-        {/* ── Corner Nodes (`•` Black filled dots) ── */}
+        {/* Corner Nodes */}
         {NAV_NODES.filter((n) => n.type === "corner").map((node) => (
           <Circle
             key={node.id}
             cx={node.x}
             cy={node.y}
-            r={0.045}
+            r={0.038}
             fill={cornerDotFill}
-            stroke={isDark ? "#090d16" : "#ffffff"}
+            stroke="#ffffff"
             strokeWidth={0.008}
           />
         ))}
 
-        {/* ── Stocking Interaction Nodes (`┿` / Cross-ticks) ── */}
+        {/* Stocking Interaction Nodes */}
         {NAV_NODES.filter((n) => n.type === "stocking").map((node) => {
-          const tickLen = 0.075;
+          const tickLen = 0.06;
           const isVert = node.orientation === "vertical";
-          const x1 = isVert ? node.x - tickLen : node.x;
-          const x2 = isVert ? node.x + tickLen : node.x;
-          const y1 = isVert ? node.y : node.y - tickLen;
-          const y2 = isVert ? node.y : node.y + tickLen;
-
           return (
             <G key={node.id}>
-              {/* Cross-tick line perpendicular to path */}
               <Line
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
+                x1={isVert ? node.x - tickLen : node.x}
+                y1={isVert ? node.y : node.y - tickLen}
+                x2={isVert ? node.x + tickLen : node.x}
+                y2={isVert ? node.y : node.y + tickLen}
                 stroke={pathLineColor}
-                strokeWidth={0.022}
+                strokeWidth={0.02}
                 strokeLinecap="round"
               />
-              {/* Central node dot */}
-              <Circle
-                cx={node.x}
-                cy={node.y}
-                r={0.025}
-                fill={cornerDotFill}
-              />
+              <Circle cx={node.x} cy={node.y} r={0.022} fill={cornerDotFill} />
             </G>
           );
         })}
       </G>
 
-      {/* ── 6. Dock Point (`○` Circle Symbol) ── */}
+      {/* ── 7. Docking Station (`○` Symbol) ── */}
       <G transform={`translate(${DOCK.x}, ${DOCK.y})`}>
-        <Circle
-          cx={0}
-          cy={0}
-          r={DOCK.outerRadius}
-          fill={canvasBg}
-          stroke={wallStroke}
-          strokeWidth={0.022}
-        />
+        <Circle cx={0} cy={0} r={DOCK.outerRadius} fill={canvasBg} stroke="#16a34a" strokeWidth={0.02} />
+        <Circle cx={0} cy={0} r={DOCK.innerRadius} fill="#16a34a" />
+        <SvgText x={0} y={0.16} fill="#15803d" fontSize={0.06} fontWeight="800" textAnchor="middle">
+          DOCK SẠC
+        </SvgText>
       </G>
 
-      {/* ── 7. Zones / Shelves (Numbers 100% centered INSIDE) ── */}
-      {ZONES.map((zone) => {
-        const isSelected = selectedZoneId === zone.id;
-        const centerX = zone.x + zone.width / 2;
-        const centerY = zone.y + zone.height / 2;
-        const fontSize = zone.fontSize ?? 0.18;
+      {/* ── 8. THE 6 OFFICIAL SHELVES (Clean, High Contrast, No Confusing Numbers) ── */}
+      {SHELVES_6.map((shelf) => {
+        const sData = shelfDensities.find((d) => d.shelfId === shelf.shelfId);
+        const density = sData ? Math.round(sData.densityPercentage) : 45;
+        const isOos = density < 50 || (sData?.needsRestock ?? false);
+
+        // Density color status
+        const statusColor = density >= 70 ? "#16a34a" : density >= 40 ? "#d97706" : "#dc2626";
+        const statusBg = density >= 70 ? "rgba(22, 163, 74, 0.15)" : density >= 40 ? "rgba(217, 119, 6, 0.15)" : "rgba(220, 38, 38, 0.18)";
+
+        const centerX = shelf.x + shelf.width / 2;
+        const centerY = shelf.y + shelf.height / 2;
+        const isHoriz = shelf.width > shelf.height;
 
         return (
           <G
-            key={zone.id}
-            onPress={onZonePress ? () => onZonePress(zone) : undefined}
+            key={`shelf-block-${shelf.shelfId}`}
+            onPress={onShelfPress ? () => onShelfPress(shelf) : undefined}
           >
-            {/* Shelf Box */}
-            {!showHeatmap ? (
+            {/* Low stock pulsing beacon halo */}
+            {isOos && (
               <Rect
-                x={zone.x}
-                y={zone.y}
-                width={zone.width}
-                height={zone.height}
-                fill={isSelected ? `${zone.stroke}35` : zone.fill}
-                stroke={zone.stroke}
-                strokeWidth={isSelected ? (zone.strokeWidth ?? 0.025) * 1.5 : (zone.strokeWidth ?? 0.025)}
-                rx={0.02}
+                x={shelf.x - 0.025}
+                y={shelf.y - 0.025}
+                width={shelf.width + 0.05}
+                height={shelf.height + 0.05}
+                rx={0.035}
+                fill="none"
+                stroke="#ef4444"
+                strokeWidth={0.016}
+                strokeDasharray="0.04, 0.03"
+                opacity={0.85}
               />
-            ) : (
-              <G>
-                {/* Draw segments */}
-                {[0, 1, 2, 3].map((i) => {
-                  const segments = 4;
-                  const isHoriz = zone.width > zone.height;
-                  const segW = isHoriz ? zone.width / segments : zone.width;
-                  const segH = isHoriz ? zone.height : zone.height / segments;
-                  const segX = zone.x + (isHoriz ? i * segW : 0);
-                  const segY = zone.y + (isHoriz ? 0 : i * segH);
-                  // Fetch real density data from the passed densities array
-                  const densityData = densities.find((d) => d.aisleCode === zone.id);
-                  let color = "rgba(100, 116, 139, 0.3)"; // default fallback (slate)
-
-                  if (densityData?.densityColor) {
-                    if (densityData.densityColor === "red") color = "rgba(239, 68, 68, 0.6)";
-                    else if (densityData.densityColor === "yellow") color = "rgba(234, 179, 8, 0.6)";
-                    else if (densityData.densityColor === "green") color = "rgba(34, 197, 94, 0.6)";
-                    else color = densityData.densityColor; // fallback if it's already a valid hex/rgba
-                  }
-
-                  return (
-                    <Rect
-                      key={`seg-${i}`}
-                      x={segX}
-                      y={segY}
-                      width={segW}
-                      height={segH}
-                      fill={color}
-                    />
-                  );
-                })}
-                {/* Outline */}
-                <Rect
-                  x={zone.x}
-                  y={zone.y}
-                  width={zone.width}
-                  height={zone.height}
-                  fill="none"
-                  stroke={zone.stroke}
-                  strokeWidth={isSelected ? (zone.strokeWidth ?? 0.025) * 1.5 : (zone.strokeWidth ?? 0.025)}
-                  rx={0.02}
-                />
-              </G>
             )}
 
-            {/* Zone Number Label 100% Centered INSIDE */}
+            {/* Shelf Box with Aisle Theme */}
+            <Rect
+              x={shelf.x}
+              y={shelf.y}
+              width={shelf.width}
+              height={shelf.height}
+              fill={shelf.themeBg}
+              stroke={isOos ? "#dc2626" : shelf.themeColor}
+              strokeWidth={isOos ? 0.028 : 0.022}
+              rx={0.025}
+            />
+
+            {/* Internal Shelf Content */}
             <G transform={`translate(${centerX}, ${centerY})`}>
+              {/* Badge: KỆ 1 (Tag #1) */}
+              <Rect
+                x={-0.16}
+                y={isHoriz ? -0.14 : -0.28}
+                width={0.32}
+                height={0.11}
+                rx={0.03}
+                fill={isOos ? "#dc2626" : shelf.themeColor}
+              />
               <SvgText
                 x={0}
-                y={fontSize * 0.35}
-                fill={zone.stroke}
-                fontSize={fontSize}
+                y={isHoriz ? -0.06 : -0.20}
+                fill="#ffffff"
+                fontSize={0.065}
                 fontWeight="900"
                 textAnchor="middle"
               >
-                {zone.label}
+                {`KỆ ${shelf.shelfId}`}
+              </SvgText>
+
+              {/* Shelf Category Text */}
+              <SvgText
+                x={0}
+                y={isHoriz ? 0.02 : -0.05}
+                fill={isDark ? "#ffffff" : "#0f172a"}
+                fontSize={0.055}
+                fontWeight="800"
+                textAnchor="middle"
+              >
+                {shelf.category}
+              </SvgText>
+
+              {/* Aisle Tag & ArUco */}
+              <SvgText
+                x={0}
+                y={isHoriz ? 0.08 : 0.04}
+                fill="#64748b"
+                fontSize={0.045}
+                fontWeight="600"
+                textAnchor="middle"
+              >
+                {`Dãy ${shelf.aisleCode} · Tag #${shelf.arucoTag}`}
+              </SvgText>
+
+              {/* Live Density Badge Pill */}
+              <Rect
+                x={-0.15}
+                y={isHoriz ? 0.10 : 0.16}
+                width={0.30}
+                height={0.09}
+                rx={0.025}
+                fill={statusBg}
+                stroke={statusColor}
+                strokeWidth={0.008}
+              />
+              <SvgText
+                x={0}
+                y={isHoriz ? 0.165 : 0.225}
+                fill={statusColor}
+                fontSize={0.055}
+                fontWeight="900"
+                textAnchor="middle"
+              >
+                {isOos ? `🚨 ${density}%` : `✓ ${density}%`}
               </SvgText>
             </G>
           </G>
         );
       })}
 
-      {/* ── 8. Robot Markers ── */}
+      {/* ── 9. REALTIME ROBOT TELEMETRY MARKER (RB0001) ── */}
       {robots.map((robot) => {
         if (!robot.position) return null;
-        const { x, y } = projectRobot(robot.position, projection);
+        const x = Math.max(0.1, Math.min(2.9, robot.position.x));
+        const y = Math.max(0.1, Math.min(2.9, robot.position.y));
         const heading = robot.position.headingDeg ?? 0;
-        const hex = statusHexFor(robot);
-        const isHighlighted = highlightedCode === robot.robotCode;
-
-        const rSize = 0.075;
-        const transform = `translate(${x}, ${y}) rotate(${heading})`;
+        const battery = robot.batteryPct ?? 100;
+        const hex = battery > 50 ? "#10b981" : battery > 20 ? "#f59e0b" : "#ef4444";
+        const rSize = 0.085;
 
         return (
           <G
             key={robot.robotCode}
             onPress={onRobotPress ? () => onRobotPress(robot.robotCode) : undefined}
           >
-            {/* Pulsing Halo */}
+            {/* Directional Radar Wave Fan */}
+            <G transform={`translate(${x}, ${y}) rotate(${heading})`}>
+              <Path
+                d="M 0,0 L -0.22,-0.38 A 0.44,0.44 0 0,1 0.22,-0.38 Z"
+                fill="rgba(16, 185, 129, 0.18)"
+                stroke="#10b981"
+                strokeWidth={0.008}
+                strokeDasharray="0.02, 0.02"
+              />
+            </G>
+
+            {/* Pulsing Ripple Circle */}
             <Circle
               cx={x}
               cy={y}
-              r={rSize + 0.035}
-              fill={hex}
-              opacity={isHighlighted ? 0.45 : 0.22}
+              r={rSize + 0.04}
+              fill="rgba(16, 185, 129, 0.25)"
             />
 
-            {/* Robot Body Circle + Direction Arrow */}
-            <G transform={transform}>
-              <Circle cx={0} cy={0} r={rSize} fill={hex} stroke="#ffffff" strokeWidth={0.012} />
-              <Path d="M 0,-0.055 L 0.03,0.02 L -0.03,0.02 Z" fill="#ffffff" />
+            {/* Robot Physical Body Puck */}
+            <Circle
+              cx={x}
+              cy={y}
+              r={rSize}
+              fill="#0f172a"
+              stroke="#10b981"
+              strokeWidth={0.016}
+            />
+
+            {/* Direction pointer triangle inside puck */}
+            <G transform={`translate(${x}, ${y}) rotate(${heading})`}>
+              <Path
+                d="M 0,-0.065 L 0.038,0.035 L -0.038,0.035 Z"
+                fill="#10b981"
+              />
             </G>
 
-            {/* Robot Code Badge */}
+            {/* Center LED Dot */}
+            <Circle cx={x} cy={y} r={0.015} fill="#ffffff" />
+
+            {/* Floating Live Telemetry Label Pill */}
             {showLabels && (
-              <G transform={`translate(${x}, ${y + rSize + 0.06})`}>
+              <G transform={`translate(${x}, ${y + rSize + 0.07})`}>
                 <Rect
-                  x={-0.16}
-                  y={-0.045}
-                  width={0.32}
-                  height={0.08}
-                  fill={isDark ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.95)"}
-                  stroke={hex}
-                  strokeWidth={0.008}
-                  rx={0.03}
+                  x={-0.24}
+                  y={-0.05}
+                  width={0.48}
+                  height={0.095}
+                  rx={0.035}
+                  fill="#0f172a"
+                  stroke="#10b981"
+                  strokeWidth={0.012}
                 />
                 <SvgText
                   x={0}
-                  y={0.018}
-                  fill={isDark ? "#ffffff" : "#0f172a"}
-                  fontSize={0.05}
-                  fontWeight="800"
+                  y={0.016}
+                  fill="#ffffff"
+                  fontSize={0.052}
+                  fontWeight="900"
                   textAnchor="middle"
                 >
-                  {robot.robotCode}
+                  {`🤖 ${robot.robotCode} · 🔋${battery}%`}
                 </SvgText>
               </G>
             )}

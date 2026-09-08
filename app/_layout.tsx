@@ -81,7 +81,7 @@ function RootNavigation() {
       {status === "unauthenticated" ? (
         <Redirect href={"/login" as any} />
       ) : status === "authenticated" ? (
-        <Redirect href="/staff/fleet" />
+        <Redirect href="/staff" />
       ) : null}
     </NavThemeProvider>
   );

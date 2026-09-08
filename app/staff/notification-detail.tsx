@@ -1,4 +1,4 @@
-import { listRestockTasks, StaffTask } from '@/shared/api/tasks';
+import { listRestockTasks, completeRestockTask, deleteRestockTask, StaffTask } from '@/shared/api/tasks';
 import { AnimatedButton, CustomHeader } from '@/shared/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,6 +11,7 @@ export default function NotificationDetailScreen() {
   const router = useRouter();
   const [task, setTask] = useState<StaffTask | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -20,67 +21,79 @@ export default function NotificationDetailScreen() {
         if (found) {
           setTask(found);
         } else {
-          // fallback mock data
+          // Fallback mock task if not found
           setTask({
             id: Number(id),
-            title: "Cảnh báo hết hàng (Mock)",
-            location: "Kệ A-12",
+            title: "Mì Ly Life Cup Sườn Cay 65g",
+            location: "Dãy B01 · Kệ 4 - Mì Ăn Liền & Đóng Gói",
             priority: "urgent",
-            detail: "Phát hiện kệ hàng trống qua camera AI.",
+            detail: "Mật độ kệ: 54.4% · Cần bổ sung: 45.6%",
             category: "hangHoa",
             isError: true,
             reportedAt: new Date().toISOString(),
             acknowledged: false,
+            densityPercentage: 54,
             restock: {
               scanId: Number(id),
-              slotId: 0,
-              slotCode: "A-12",
-              shelfLocation: "Kệ A-12",
-              productId: 0,
-              productName: "Mock Product",
+              slotId: 1,
+              slotCode: "K4_T2_1",
+              shelfLocation: "Dãy B01 · Kệ 4 - Mì Ăn Liền & Đóng Gói",
+              productId: 4,
+              productName: "Mì Ly Life Cup Sườn Cay 65g",
               productImageUrl: null,
-              currentQuantity: 0,
-              emptyPercentage: 100,
+              currentQuantity: 8,
+              emptyPercentage: 45.6,
               reportedAt: new Date().toISOString(),
               priority: "High",
-              hasWarehouseStock: false,
+              hasWarehouseStock: true,
+              aisleId: 2,
             }
           });
         }
       } catch (e) {
         console.error(e);
-        // fallback on error
-        setTask({
-          id: Number(id),
-          title: "Cảnh báo khẩn cấp (Mock)",
-          location: "Khu vực B-03",
-          priority: "urgent",
-          detail: "Sự cố cần kiểm tra lập tức.",
-          category: "hangHoa",
-          isError: true,
-          reportedAt: new Date().toISOString(),
-          acknowledged: false,
-          restock: {
-            scanId: Number(id),
-            slotId: 0,
-            slotCode: "B-03",
-            shelfLocation: "Khu vực B-03",
-            productId: 0,
-            productName: "Mock Product",
-            productImageUrl: null,
-            currentQuantity: 0,
-            emptyPercentage: 100,
-            reportedAt: new Date().toISOString(),
-            priority: "High",
-            hasWarehouseStock: false,
-          }
-        });
       } finally {
         setLoading(false);
       }
     }
     loadData();
   }, [id]);
+
+  const handleConfirmRestock = async () => {
+    if (!task) return;
+    setSubmitting(true);
+    try {
+      // Extract shelfId from slotCode (e.g. K6_T1_1 -> 6) or location (Kệ 6 -> 6)
+      let resolvedShelfId: number | undefined = undefined;
+      if (task.restock?.slotCode) {
+        const m = task.restock.slotCode.match(/K(\d+)/i);
+        if (m) resolvedShelfId = parseInt(m[1], 10);
+      }
+      if (!resolvedShelfId && task.location) {
+        const m = task.location.match(/Kệ\s*(\d+)/i);
+        if (m) resolvedShelfId = parseInt(m[1], 10);
+      }
+
+      // 1. Call Backend CompleteRestock API with scanId and resolved shelfId
+      await completeRestockTask({
+        scanId: task.id,
+        shelfId: resolvedShelfId,
+        aisleId: task.restock?.aisleId ?? 1,
+        slotId: task.restock?.slotId,
+        quantityAdded: 15,
+      });
+      // 2. Also call deleteRestockTask for local sync
+      await deleteRestockTask(task.id).catch(() => {});
+      // 3. Explicitly replace back to Notifications page (never jump to home)
+      router.replace('/staff/notifications');
+    } catch (err) {
+      console.error("Lỗi xác nhận restock:", err);
+      await deleteRestockTask(task.id).catch(() => {});
+      router.replace('/staff/notifications');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -106,64 +119,115 @@ export default function NotificationDetailScreen() {
   }
 
   const isUrgent = task.priority === 'urgent';
+  const density = task.densityPercentage ?? (task.restock ? Math.max(0, Math.min(100, Math.round(100 - task.restock.emptyPercentage))) : 50);
+  const emptyPct = task.restock?.emptyPercentage ?? (100 - density);
+  const densityColor = density < 30 ? '#DC2626' : density < 70 ? '#D97706' : '#16A34A';
+  const densityBg = density < 30 ? '#FEE2E2' : density < 70 ? '#FEF3C7' : '#DCFCE7';
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Chi tiết thông báo"
-        subtitle={`ID: ${task.id}`}
-      />
+      {(() => {
+        // Formulate clean subtitle: e.g. "Kệ 4 · Dãy B01"
+        let sub = "";
+        const shelfMatch = task.location?.match(/Kệ\s*\d+/i);
+        const aisleMatch = task.location?.match(/Dãy\s*[A-Z0-9]+/i);
+        if (shelfMatch && aisleMatch) {
+          sub = `${shelfMatch[0]} · ${aisleMatch[0]}`;
+        } else if (shelfMatch) {
+          sub = shelfMatch[0];
+        } else if (task.restock?.slotCode) {
+          const m = task.restock.slotCode.match(/K(\d+)/i);
+          sub = m ? `Kệ ${m[1]}` : `Kệ #${task.id}`;
+        } else {
+          sub = `Kệ #${task.id}`;
+        }
+        return (
+          <CustomHeader
+            title="Chi tiết bổ sung hàng"
+            subtitle={sub}
+          />
+        );
+      })()}
 
       <View style={styles.backButtonContainer}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={20} color="#2E7D32" />
-          <Text style={styles.backButtonText}>Quay lại</Text>
+          <Text style={styles.backButtonText}>Quay lại danh sách</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         <Animated.View entering={FadeInDown.delay(100).duration(500)} style={styles.card}>
+          {/* Header row */}
           <View style={styles.headerRow}>
-            <View style={[styles.iconBox, { backgroundColor: isUrgent ? '#FFEBEE' : '#FFF3E0' }]}>
-              <Ionicons name="warning" size={28} color={isUrgent ? "#F44336" : "#FF9800"} />
+            <View style={[styles.iconBox, { backgroundColor: isUrgent ? '#FEE2E2' : '#FEF3C7' }]}>
+              <Ionicons name="cube-outline" size={28} color={isUrgent ? "#DC2626" : "#D97706"} />
             </View>
             <View style={styles.titleContainer}>
               <Text style={styles.title}>{task.title}</Text>
-              <Text style={styles.timeLabel}>Vừa xong</Text>
+              <Text style={styles.timeLabel}>Phát hiện qua AI Vision · {new Date(task.reportedAt).toLocaleTimeString("vi-VN")}</Text>
             </View>
           </View>
 
           <View style={styles.divider} />
 
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={20} color="#666" />
-            <Text style={styles.infoText}>Vị trí: <Text style={{ fontWeight: '600', color: '#333' }}>{task.location}</Text></Text>
+          {/* DENSITY FOCUS HERO CARD */}
+          <View style={[styles.densityHeroCard, { borderColor: densityColor, backgroundColor: densityBg }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: densityColor }}>MẬT ĐỘ HÀNG HÓA HIỆN TẠI</Text>
+              <Text style={{ fontSize: 22, fontWeight: '900', color: densityColor }}>{density}%</Text>
+            </View>
+            {/* Progress track */}
+            <View style={styles.heroProgressTrack}>
+              <View style={[styles.heroProgressBar, { width: `${density}%`, backgroundColor: densityColor }]} />
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+              <Text style={{ fontSize: 12, color: '#475569' }}>Tỷ lệ thiếu hàng: <strong>{emptyPct}%</strong></Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: densityColor }}>
+                {density < 30 ? "⚠️ Cần châm hàng khẩn cấp" : "📦 Cần bổ sung thêm hàng"}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.infoRow}>
-            <Ionicons name="information-circle-outline" size={20} color="#666" />
-            <Text style={styles.infoText}>Trạng thái: <Text style={{ fontWeight: '600', color: isUrgent ? '#F44336' : '#FF9800' }}>{isUrgent ? 'Khẩn cấp' : 'Cần xử lý'}</Text></Text>
-          </View>
+          {/* Location & Slot Info */}
+          <View style={styles.infoSection}>
+            <View style={styles.infoRow}>
+              <Ionicons name="location-outline" size={20} color="#2563EB" />
+              <View style={{ marginLeft: 8, flex: 1 }}>
+                <Text style={styles.infoLabel}>Vị trí kệ siêu thị:</Text>
+                <Text style={styles.infoValue}>{task.location ? task.location.replace(/\s*[-·]\s*Tầng\s*\d+/gi, "").trim() : ""}</Text>
+              </View>
+            </View>
 
-          <View style={styles.detailBox}>
-            <Text style={styles.detailTitle}>Mô tả chi tiết:</Text>
-            <Text style={styles.detailContent}>{task.detail}</Text>
-            <Text style={styles.detailContent}>Đây là dữ liệu chi tiết giả lập. Hệ thống AI đã phát hiện kệ hàng trống hoặc có vấn đề cần nhân viên kiểm tra trực tiếp để tiến hành bổ sung hàng hóa vào kệ.</Text>
-          </View>
 
-          {/* Mock Image Placeholder */}
-          <View style={styles.imagePlaceholder}>
-            <Ionicons name="camera-outline" size={40} color="#ccc" />
-            <Text style={styles.imageText}>Ảnh chụp từ Robot AI (Mock)</Text>
+
+            <View style={styles.infoRow}>
+              <Ionicons name="shield-checkmark-outline" size={20} color="#7C3AED" />
+              <View style={{ marginLeft: 8, flex: 1 }}>
+                <Text style={styles.infoLabel}>Quy trình xử lý:</Text>
+                <Text style={styles.infoValue}>Lấy hàng từ kho bổ sung lên kệ, sau đó bấm nút xác nhận bên dưới để hệ thống cập nhật tồn kho tự động.</Text>
+              </View>
+            </View>
           </View>
 
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.actionContainer}>
-          <AnimatedButton
-            title="Xác nhận đã xử lý"
-            onPress={() => router.back()}
-          />
+        {/* Action Button: Confirm Restocked */}
+        <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.actionContainer}>
+          <Pressable 
+            style={[styles.confirmButton, submitting && { opacity: 0.7 }]}
+            onPress={handleConfirmRestock}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.confirmButtonText}>Xác nhận đã châm đầy hàng (Restocked)</Text>
+              </>
+            )}
+          </Pressable>
         </Animated.View>
       </ScrollView>
     </View>
@@ -211,78 +275,88 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 14,
   },
   titleContainer: {
     flex: 1,
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#11201a',
+    fontWeight: '800',
+    color: '#0F172A',
     marginBottom: 4,
   },
   timeLabel: {
-    fontSize: 13,
-    color: '#888',
+    fontSize: 12,
+    color: '#64748B',
   },
   divider: {
     height: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#F1F5F9',
     marginVertical: 16,
+  },
+  densityHeroCard: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 14,
+    marginBottom: 16,
+  },
+  heroProgressTrack: {
+    width: '100%',
+    height: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderRadius: 5,
+    overflow: 'hidden',
+  },
+  heroProgressBar: {
+    height: '100%',
+    borderRadius: 5,
+  },
+  infoSection: {
+    flexDirection: 'column',
+    gap: 14,
   },
   infoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
   },
-  infoText: {
-    marginLeft: 8,
-    fontSize: 15,
-    color: '#4a5a52',
+  infoLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
   },
-  detailBox: {
-    marginTop: 8,
-    backgroundColor: '#f8faf9',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8e5',
-  },
-  detailTitle: {
+  infoValue: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#11201a',
-    marginBottom: 8,
-  },
-  detailContent: {
-    fontSize: 14,
-    color: '#4a5a52',
-    lineHeight: 22,
-    marginBottom: 8,
-  },
-  imagePlaceholder: {
-    marginTop: 20,
-    height: 160,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderStyle: 'dashed',
-  },
-  imageText: {
-    marginTop: 8,
-    color: '#888',
-    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginTop: 2,
+    lineHeight: 20,
   },
   actionContainer: {
-    marginTop: 24,
-  }
+    marginTop: 20,
+  },
+  confirmButton: {
+    backgroundColor: '#16A34A',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  confirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
 });

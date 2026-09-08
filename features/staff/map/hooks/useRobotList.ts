@@ -1,9 +1,10 @@
 /**
- * `useRobotList` — provides hardcoded robot list with live poses matching the
- * store navigation layout. Works 100% offline without backend dependency.
+ * `useRobotList` — Real API hook for fetching live robot roster & poses from Backend.
+ * Calls BE: GET /api/robots + GET /api/robots/{code}/pose.
+ * Single physical robot in store: RB0001 (SmartMarketBot 01).
  */
-import { useCallback, useState } from "react";
-import type { NormalizedRobot } from "@/shared/api";
+import { useCallback, useEffect, useState } from "react";
+import { listRobotsWithPositions, type NormalizedRobot } from "@/shared/api";
 
 export interface RobotListState {
   robots: NormalizedRobot[] | null;
@@ -13,83 +14,55 @@ export interface RobotListState {
   onRefresh: () => Promise<void>;
 }
 
-export const MOCK_ROBOTS: NormalizedRobot[] = [
+export const SINGLE_ROBOT_FALLBACK: NormalizedRobot[] = [
   {
     robotId: 1,
-    robotCode: "SMB-01",
-    robotName: "SuperMarketBot 01",
+    robotCode: "RB0001",
+    robotName: "SmartMarketBot 01",
     status: "active",
-    mode: "navigating",
-    batteryPct: 88,
-    lastSeenAt: new Date().toISOString(),
-    position: {
-      x: 0.48,
-      y: 1.3,
-      headingDeg: 0,
-      at: new Date().toISOString(),
-    },
-  },
-  {
-    robotId: 2,
-    robotCode: "SMB-02",
-    robotName: "SuperMarketBot 02",
-    status: "active",
-    mode: "scanning",
-    batteryPct: 92,
-    lastSeenAt: new Date().toISOString(),
-    position: {
-      x: 1.5,
-      y: 0.85,
-      headingDeg: 90,
-      at: new Date().toISOString(),
-    },
-  },
-  {
-    robotId: 3,
-    robotCode: "SMB-03",
-    robotName: "SuperMarketBot 03",
-    status: "charging",
-    mode: "charging",
+    mode: "idle",
     batteryPct: 100,
     lastSeenAt: new Date().toISOString(),
     position: {
-      x: 2.8,
-      y: 2.0,
-      headingDeg: 270,
-      at: new Date().toISOString(),
-    },
-  },
-  {
-    robotId: 4,
-    robotCode: "SMB-04",
-    robotName: "SuperMarketBot 04",
-    status: "standby",
-    mode: "idle",
-    batteryPct: 65,
-    lastSeenAt: new Date().toISOString(),
-    position: {
-      x: 2.45,
-      y: 1.3,
-      headingDeg: 180,
+      x: 0.6,
+      y: 2.2,
+      headingDeg: 90,
       at: new Date().toISOString(),
     },
   },
 ];
 
 export function useRobotList(): RobotListState {
-  const [robots, setRobots] = useState<NormalizedRobot[] | null>(MOCK_ROBOTS);
+  const [robots, setRobots] = useState<NormalizedRobot[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const reload = useCallback(async () => {
-    setRobots([...MOCK_ROBOTS]);
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const data = await listRobotsWithPositions();
+      if (data && data.length > 0) {
+        setRobots(data);
+      } else {
+        setRobots(SINGLE_ROBOT_FALLBACK);
+      }
+    } catch (e: any) {
+      setRobots(SINGLE_ROBOT_FALLBACK);
+      setError(e?.message ?? "Không thể kết nối đến robot");
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 3000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    setRobots([...MOCK_ROBOTS]);
+    await load();
     setRefreshing(false);
-  }, []);
+  }, [load]);
 
-  return { robots, error: null, refreshing, reload, onRefresh };
+  return { robots, error, refreshing, reload: load, onRefresh };
 }

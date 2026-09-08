@@ -149,6 +149,7 @@ export interface StaffTask {
   acknowledged: boolean;
   /** Underlying restock payload — needed by the "Đã xử lý" action. */
   restock: RestockTaskDto;
+  densityPercentage?: number;
 }
 
 // ─── Map / Floorplan ───────────────────────────────────────────────────────
@@ -216,6 +217,24 @@ export interface AisleDensityDto {
   aisleId: number;
   aisleCode: string;
   aisleName?: string;
+  latestScanId?: number;
+  scannedAt?: string;
+  densityPercentage: number;
+  emptyPercentage: number;
+  needsRestock: boolean;
+  imageUrl?: string;
+  densityColor: string;
+}
+
+
+export interface ShelfDensityDto {
+  shelfId: number;
+  shelfName: string;
+  aisleId: number;
+  aisleCode?: string;
+  aisleName?: string;
+  zoneName?: string;
+  nodeId?: number;
   latestScanId?: number;
   scannedAt?: string;
   densityPercentage: number;

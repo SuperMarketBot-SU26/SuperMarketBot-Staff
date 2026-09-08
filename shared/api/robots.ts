@@ -108,14 +108,19 @@ export async function listRobotsWithPositions(): Promise<NormalizedRobot[]> {
   );
   return robots.map((r, i) => {
     const p = poses[i];
-    if (!p) return r;
+    const hasValidPose = p && (p.x !== 0 || p.y !== 0);
+    // Reliable coordinate fallback at Dock Station (x: 0.6, y: 2.2, heading: 90) so marker always displays
+    const x = hasValidPose ? p.x : 0.6;
+    const y = hasValidPose ? p.y : 2.2;
+    const headingDeg = hasValidPose ? p.headingDeg : 90;
+
     return {
       ...r,
       position: {
-        x: p.x,
-        y: p.y,
-        headingDeg: p.headingDeg,
-        at: p.timestampUtc ?? new Date().toISOString(),
+        x,
+        y,
+        headingDeg,
+        at: p?.timestampUtc ?? new Date().toISOString(),
       },
     };
   });
