@@ -111,7 +111,7 @@ async function refreshAccessToken(): Promise<string | null> {
     try {
       const res = await fetch(buildUrl("/api/auth/refresh"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
         body: JSON.stringify({ refreshToken: rt }),
       });
       if (!res.ok) {
@@ -150,6 +150,7 @@ export async function apiRequest<T>(
 
   const headers: Record<string, string> = {
     Accept: "application/json",
+    "ngrok-skip-browser-warning": "true",
   };
   // Always send a JSON Content-Type when there's a body — even on
   // `skipAuth: true` endpoints (login / refresh), otherwise ASP.NET Core

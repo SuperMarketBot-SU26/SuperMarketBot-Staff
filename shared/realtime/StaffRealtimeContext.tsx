@@ -116,7 +116,7 @@ export function StaffRealtimeProvider({ children }: { children: React.ReactNode 
       if (name === "OutOfStockAlert") {
         const shelf = String(payload.shelfName ?? payload.nodeName ?? `Kệ #${payload.nodeId ?? payload.shelfId ?? "?"}`);
         const occupancy = payload.occupancyRatePct ?? payload.densityPercentage ?? "?";
-        const empty = payload.emptySlotCount ?? "?";
+        const empty = payload.emptySlotCount && payload.emptySlotCount !== "?" && Number(payload.emptySlotCount) > 0 ? String(payload.emptySlotCount) : "";
 
         playAlertChime();
 
@@ -201,7 +201,7 @@ export function StaffRealtimeProvider({ children }: { children: React.ReactNode 
               <Text style={styles.bannerBody} numberOfLines={2}>
                 <Text style={{ fontWeight: "700", color: "#1E293B" }}>{activeBanner.shelf}</Text>
                 {" · "}Mức còn hàng: <Text style={{ fontWeight: "700", color: "#B45309" }}>{activeBanner.occupancy}%</Text>
-                {" · "}Trống: <Text style={{ fontWeight: "700", color: "#DC2626" }}>{activeBanner.empty} slot</Text>
+                {activeBanner.empty ? (<>{" · "}Trống: <Text style={{ fontWeight: "700", color: "#DC2626" }}>{activeBanner.empty} slot</Text></>) : null}
               </Text>
               <Text style={styles.bannerAction}>Chạm để mở trang Thông Báo và xếp hàng ➔</Text>
             </View>
