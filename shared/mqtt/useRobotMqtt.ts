@@ -338,6 +338,16 @@ export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttRe
         if (!isMountedRef.current) return;
         processIncomingPayload(typeof data === 'string' ? data : JSON.stringify(data), 'signalr/status');
       });
+      hub.on('zoneEntered', (data: any) => {
+        if (!isMountedRef.current || !data) return;
+        if (data.objectName) {
+          setTelemetry((prev) => prev ? { ...prev, nearestLocation: data.objectName } : prev);
+        }
+      });
+      hub.on('robotLog', () => {});
+      hub.on('slamMapStream', () => {});
+      hub.on('missionAssigned', () => {});
+      hub.on('shelfReport', () => {});
 
       hub.start()
         .then(async () => {

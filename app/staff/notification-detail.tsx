@@ -183,7 +183,9 @@ export default function NotificationDetailScreen() {
               <View style={[styles.heroProgressBar, { width: `${density}%`, backgroundColor: densityColor }]} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-              <Text style={{ fontSize: 12, color: '#475569' }}>Tỷ lệ thiếu hàng: <strong>{emptyPct}%</strong></Text>
+              <Text style={{ fontSize: 12, color: '#475569' }}>
+                Tỷ lệ thiếu hàng: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{emptyPct}%</Text>
+              </Text>
               <Text style={{ fontSize: 12, fontWeight: '700', color: densityColor }}>
                 {density < 30 ? "⚠️ Cần châm hàng khẩn cấp" : "📦 Cần bổ sung thêm hàng"}
               </Text>
