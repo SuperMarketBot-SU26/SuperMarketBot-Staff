@@ -130,7 +130,7 @@ function MapLegendModal({
                 </View>
                 <View style={styles.legendTextWrap}>
                   <Text style={[styles.legendItemLabel, { color: textColor }]}>
-                    : {item.label}
+                    {item.label}
                   </Text>
                   <Text style={[styles.legendItemDesc, { color: subColor }]}>
                     {item.description}
@@ -166,14 +166,16 @@ function ZoneDetailModal({
         <Pressable style={[styles.zoneModalCard, { backgroundColor: cardBg }]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.zoneHeader}>
             <View style={[styles.zoneBadge, { backgroundColor: zone.stroke }]}>
-              <Text style={styles.zoneBadgeText}>Zone {zone.zoneNumber}</Text>
+              <Text style={styles.zoneBadgeText}>Kệ {zone.zoneNumber}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <XIcon size={18} color={subColor} />
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.zoneName, { color: textColor }]}>{zone.name}</Text>
+          <Text style={[styles.zoneName, { color: textColor }]}>
+            {zone.icon ? `${zone.icon} ` : ""}{zone.name}
+          </Text>
           <Text style={[styles.zoneCategory, { color: palette.violet[500] }]}>{zone.category}</Text>
           <Text style={[styles.zoneDesc, { color: subColor }]}>{zone.description}</Text>
 
@@ -532,7 +534,7 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  viewport: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
+  viewport: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" },
 
   topBar: {
     position: "absolute",

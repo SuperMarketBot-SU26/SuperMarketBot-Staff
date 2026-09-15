@@ -84,16 +84,18 @@ export function StaffRealtimeProvider({ children }: { children: React.ReactNode 
     let mounted = true;
 
     const isNgrok = API_BASE_URL.includes("ngrok");
-    const hubUrl = `${API_BASE_URL.replace(/\/$/, "")}/hubs/staff`;
+    const cleanBase = API_BASE_URL.replace(/\/api\/?$/, "").replace(/\/+$/, "");
+    const hubUrl = isNgrok
+      ? `${cleanBase}/hubs/staff?ngrok-skip-browser-warning=true`
+      : `${cleanBase}/hubs/staff`;
 
     const connection = new SignalR.HubConnectionBuilder()
       .withUrl(hubUrl, {
-        // Only attach headers for ngrok tunnels, avoid breaking browser websockets on localhost
-        ...(isNgrok ? { headers: { "ngrok-skip-browser-warning": "true" } } : {}),
-        transport: SignalR.HttpTransportType.WebSockets | SignalR.HttpTransportType.LongPolling,
+        skipNegotiation: true,
+        transport: SignalR.HttpTransportType.WebSockets,
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-      .configureLogging(SignalR.LogLevel.Information)
+      .configureLogging(SignalR.LogLevel.Warning)
       .build();
 
     const join = async () => {
@@ -115,7 +117,7 @@ export function StaffRealtimeProvider({ children }: { children: React.ReactNode 
 
       if (name === "OutOfStockAlert") {
         const shelf = String(payload.shelfName ?? payload.nodeName ?? `Kệ #${payload.nodeId ?? payload.shelfId ?? "?"}`);
-        const occupancy = payload.occupancyRatePct ?? payload.densityPercentage ?? "?";
+        const occupancy = String(payload.occupancyRatePct ?? payload.densityPercentage ?? "?");
         const empty = payload.emptySlotCount && payload.emptySlotCount !== "?" && Number(payload.emptySlotCount) > 0 ? String(payload.emptySlotCount) : "";
 
         playAlertChime();

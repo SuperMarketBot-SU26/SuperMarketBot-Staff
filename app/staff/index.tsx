@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { CustomHeader, AnimatedButton } from '@/shared/ui';
+import { CustomHeader } from '@/shared/ui';
 import { ShelfDensityOverview } from '@/features/staff/map/components/ShelfDensityOverview';
 import { Ionicons } from '@expo/vector-icons';
 import { listRestockTasks, StaffTask } from '@/shared/api/tasks';
@@ -29,7 +29,7 @@ export default function StaffIndexPage() {
       setRecentTasks(tasks.slice(0, 5));
       const activeRobots = robots.filter(r => r.status === 'active' || r.status === 'standby').length;
       setRobotCount(activeRobots);
-      const rb1 = robots.find(r => r.code === 'RB0001' || r.code === 'RB001') || robots[0] || null;
+      const rb1 = robots.find(r => r.robotCode === 'RB0001' || r.robotCode === 'RB001') || robots[0] || null;
       setPrimaryRobot(rb1);
     } catch (e) {
       console.log(e);
@@ -90,10 +90,10 @@ export default function StaffIndexPage() {
             <View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={styles.robotNameText}>
-                  {primaryRobot?.name || 'SmartMarketBot 01'}
+                  {primaryRobot?.robotName || 'SmartMarketBot 01'}
                 </Text>
                 <View style={styles.robotCodePill}>
-                  <Text style={styles.robotCodePillText}>{primaryRobot?.code || 'RB0001'}</Text>
+                  <Text style={styles.robotCodePillText}>{primaryRobot?.robotCode === 'RB001' ? 'RB0001' : (primaryRobot?.robotCode || 'RB0001')}</Text>
                 </View>
               </View>
               <Text style={styles.robotModeText}>
@@ -104,7 +104,7 @@ export default function StaffIndexPage() {
 
           <View style={styles.robotBatteryBadge}>
             <Text style={styles.robotBatteryVal}>
-              🔋 {primaryRobot?.batteryLevel ?? 100}%
+              🔋 {primaryRobot?.batteryPct ?? 100}%
             </Text>
           </View>
         </View>
@@ -122,26 +122,6 @@ export default function StaffIndexPage() {
         </View>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(400).duration(600).springify()} style={styles.actionsContainer}>
-        <Text style={styles.sectionTitle}>Tác vụ nhanh</Text>
-        <AnimatedButton 
-          title="Xem mật độ 6 kệ hàng & Đội Robot" 
-          onPress={() => router.push('/staff/fleet')}
-          color="#15803d"
-          style={{ marginBottom: 16 }}
-        />
-        <AnimatedButton 
-          title="Xem bản đồ Heatmap" 
-          onPress={() => router.push('/staff/map')}
-          style={{ marginBottom: 16 }}
-        />
-        <AnimatedButton 
-          title="Kiểm tra hàng hết" 
-          onPress={() => router.push('/staff/notifications')}
-          color="#FF9800"
-          style={{ marginBottom: 16 }}
-        />
-      </Animated.View>
 
       {/* Activity Feed Section */}
       <Animated.View entering={FadeInDown.delay(600).duration(600).springify()} style={styles.activityContainer}>

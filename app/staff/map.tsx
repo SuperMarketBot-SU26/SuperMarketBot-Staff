@@ -6,7 +6,7 @@ import { InteractiveMap } from '@/features/map/InteractiveMap';
 import { getShelfDensities, type ShelfDensityDto } from '@/shared/api/aisles';
 import { CustomHeader } from '@/shared/ui';
 import { useFocusEffect } from 'expo-router';
-import { useRobotMqtt } from '@/shared/mqtt/useRobotMqtt';
+import { useRobotMqtt, normalizeRobotCode } from '@/shared/mqtt/useRobotMqtt';
 import { useStaffRealtime } from '@/shared/realtime/StaffRealtimeContext';
 import type { NormalizedRobot } from '@/shared/api/robots';
 
@@ -58,15 +58,17 @@ export default function StaffMapPage() {
   // Construct NormalizedRobot from realtime MQTT telemetry
   const activeRobots: NormalizedRobot[] = telemetry ? [{
     robotId: 1,
-    robotCode: telemetry.robotCode,
+    robotCode: normalizeRobotCode(telemetry.robotCode),
     robotName: 'SmartMarketBot 01',
-    status: telemetry.isOnline ? 'active' : 'standby',
+    status: (telemetry.isOnline ? 'active' : 'standby') as any,
     batteryPct: telemetry.batteryPct,
-    mode: telemetry.mode,
+    mode: (telemetry.mode as any) || 'IDLE',
+    lastSeenAt: telemetry.lastUpdated || new Date().toISOString(),
     position: {
       x: telemetry.x,
       y: telemetry.y,
       headingDeg: telemetry.headingDeg,
+      at: telemetry.lastUpdated || new Date().toISOString(),
     },
   }] : [];
 
@@ -120,6 +122,7 @@ export default function StaffMapPage() {
             showRobots={showRobots} 
             robotsData={activeRobots}
             shelfDensities={shelfDensities} 
+            onShelfRestocked={() => fetchDensities()}
           />
         )}
       </Animated.View>
@@ -135,7 +138,7 @@ export default function StaffMapPage() {
               </View>
               <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.robotName}>SmartMarketBot 01 ({telemetry.robotCode})</Text>
+                  <Text style={styles.robotName}>SmartMarketBot 01 ({normalizeRobotCode(telemetry.robotCode)})</Text>
                   <View style={[styles.miniBadge, { backgroundColor: isConnected ? '#dcfce7' : '#fee2e2' }]}>
                     <Text style={{ fontSize: 10, fontWeight: '700', color: isConnected ? '#15803d' : '#b91c1c' }}>
                       {mode}
@@ -143,15 +146,21 @@ export default function StaffMapPage() {
                   </View>
                 </View>
                 <Text style={styles.robotLocText}>
-                  📍 {telemetry.nearestLocation} ({telemetry.x.toFixed(2)}m, {telemetry.y.toFixed(2)}m) · {telemetry.headingDeg}°
+                  📍 {telemetry.currentNodeId ? `Node ${telemetry.currentNodeId} · ` : ''}{telemetry.nearestLocation} ({telemetry.x.toFixed(2)}m, {telemetry.y.toFixed(2)}m) · {telemetry.headingDeg}°
                 </Text>
               </View>
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="battery-charging" size={18} color={batteryColor} />
-                <Text style={[styles.batteryVal, { color: batteryColor }]}>{batteryPct}%</Text>
+                <Ionicons 
+                  name={telemetry.isCharging ? "battery-charging" : batteryPct > 80 ? "battery-full" : batteryPct > 35 ? "battery-half" : "battery-dead"} 
+                  size={18} 
+                  color={telemetry.isCharging ? "#10B981" : batteryColor} 
+                />
+                <Text style={[styles.batteryVal, { color: telemetry.isCharging ? "#10B981" : batteryColor }]}>
+                  {batteryPct}%{telemetry.isCharging ? " ⚡" : ""}
+                </Text>
               </View>
               <View style={styles.chevronBox}>
                 <Ionicons name={hudExpanded ? "chevron-down" : "chevron-up"} size={16} color="#4b5563" />
@@ -164,8 +173,10 @@ export default function StaffMapPage() {
             <View style={styles.hudBody}>
               <View style={styles.metricGrid}>
                 <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Broker MQTT</Text>
-                  <Text style={styles.metricValText} numberOfLines={1}>{brokerHost}</Text>
+                  <Text style={styles.metricLabel}>Dung lượng Pin</Text>
+                  <Text style={[styles.metricValText, { color: batteryColor }]}>
+                    {batteryPct}% {telemetry.isCharging ? '(Đang sạc ⚡)' : ''}
+                  </Text>
                 </View>
 
                 <View style={styles.metricItem}>
@@ -179,7 +190,7 @@ export default function StaffMapPage() {
                 </View>
 
                 <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Trạng thái kết nối</Text>
+                  <Text style={styles.metricLabel}>Kênh kết nối</Text>
                   <Text style={[styles.metricValText, { color: connectionColor }]}>{connectionState}</Text>
                 </View>
               </View>

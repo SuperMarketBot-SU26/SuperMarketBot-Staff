@@ -12,7 +12,7 @@ import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider as NavThemeProvider,
-} from "@react-navigation/native";
+} from "expo-router/react-navigation";
 import { Redirect, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -70,7 +70,6 @@ function RootNavigation() {
     <NavThemeProvider value={navigationTheme}>
       <StatusBar
         style={isDark ? "light" : "dark"}
-        backgroundColor={isDark ? palette.gray[950] : "#ffffff"}
       />
       <Stack screenOptions={{ headerShown: false, animation: "none" }}>
         <Stack.Screen name="index" />

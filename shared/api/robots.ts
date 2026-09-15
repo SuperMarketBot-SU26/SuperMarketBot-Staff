@@ -42,9 +42,13 @@ function normalizeStatus(robot: RobotDto): RobotStatus {
 }
 
 function toNormalized(robot: RobotDto): NormalizedRobot {
+  const normalizedCode =
+    robot.robotCode?.toUpperCase() === "RB001" || robot.robotCode?.toUpperCase() === "RB0001"
+      ? "RB0001"
+      : robot.robotCode;
   return {
     robotId: robot.robotId,
-    robotCode: robot.robotCode,
+    robotCode: normalizedCode,
     robotName: robot.robotName,
     status: normalizeStatus(robot),
     batteryPct: robot.batteryPct,

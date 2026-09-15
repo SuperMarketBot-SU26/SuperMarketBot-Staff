@@ -1,14 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Paho from 'paho-mqtt';
 import * as signalR from '@microsoft/signalr';
-import { API_BASE_URL } from '@/shared/api/client';
+import { API_BASE_URL } from '@/shared/api/config';
+import { resolveRobotNodePosition, SUPERMARKET_NODES } from '@/features/staff/map/lib/storeLayout';
 
 export interface RobotMqttTelemetry {
   robotCode: string;
+  currentNodeId?: number | null;
   x: number;
   y: number;
   headingDeg: number;
   batteryPct: number;
+  isCharging?: boolean;
+  deviceBatteryPct?: number | null;
+  espBatteryPct?: number | null;
+  espBatteryVolts?: number | null;
   mode: string;
   status: string;
   isOnline: boolean;
@@ -35,18 +41,30 @@ const MQTT_CONFIG = {
   useSSL: true,
 };
 
+export function normalizeRobotCode(code?: string): string {
+  if (!code) return 'RB0001';
+  const clean = String(code).trim().toUpperCase();
+  if (clean === 'RB001' || clean === 'RB0001') {
+    return 'RB0001';
+  }
+  return clean;
+}
+
 export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttResult {
+  const normalizedTarget = normalizeRobotCode(targetRobotCode);
+  const initialNode = SUPERMARKET_NODES[8];
   const [telemetry, setTelemetry] = useState<RobotMqttTelemetry | null>({
-    robotCode: targetRobotCode,
-    x: 1.9,
-    y: 0.22,
-    headingDeg: 0,
+    robotCode: normalizedTarget,
+    currentNodeId: 8,
+    x: initialNode.mapX,
+    y: initialNode.mapY,
+    headingDeg: 90,
     batteryPct: 100,
     mode: 'IDLE',
     status: 'Online',
     isOnline: true,
     lastUpdated: new Date().toLocaleTimeString('vi-VN'),
-    nearestLocation: 'Khu Đồ Ăn Vặt (Kệ 1)',
+    nearestLocation: initialNode.name,
   });
 
   const [connectionState, setConnectionState] = useState<'MQTT_WSS' | 'SIGNALR_FALLBACK' | 'CONNECTING' | 'DISCONNECTED'>('CONNECTING');
@@ -68,36 +86,148 @@ export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttRe
     return `Tọa độ (${x.toFixed(1)}m, ${y.toFixed(1)}m)`;
   };
 
-  const processIncomingPayload = useCallback((jsonStr: string) => {
+  const processIncomingPayload = useCallback((jsonStr: string, topic?: string) => {
     try {
       const data = JSON.parse(jsonStr);
-      const code = data.robotCode || data.code || targetRobotCode;
-      
-      const x = typeof data.xCoord === 'number' ? data.xCoord : typeof data.x === 'number' ? data.x : 1.9;
-      const y = typeof data.yCoord === 'number' ? data.yCoord : typeof data.y === 'number' ? data.y : 0.22;
-      
-      let heading = 0;
-      if (typeof data.headingDeg === 'number') heading = data.headingDeg;
-      else if (typeof data.heading === 'number') heading = data.heading;
-      else if (typeof data.headingRad === 'number') heading = (data.headingRad * 180) / Math.PI;
+      const topicCodeMatch = topic?.match(/smartmarketbot\/robot\/([^/]+)/);
+      const topicCode = topicCodeMatch ? topicCodeMatch[1] : undefined;
+      const rawCode =
+        data.robotCode ||
+        data.RobotCode ||
+        data.code ||
+        data.Code ||
+        topicCode ||
+        normalizedTarget;
+      const incomingCode = normalizeRobotCode(rawCode);
 
-      const battery = typeof data.battery === 'number' ? data.battery : typeof data.batteryPct === 'number' ? data.batteryPct : 100;
-      const mode = data.mode || (data.navState ? data.navState.toUpperCase() : 'IDLE');
-      const status = data.status || (data.isOnline !== false ? 'Online' : 'Offline');
+      // Khớp robot đích hoặc bí danh RB001 <-> RB0001
+      const isTarget =
+        incomingCode === normalizedTarget ||
+        (normalizedTarget === 'RB0001' && (incomingCode === 'RB001' || incomingCode === 'RB0001'));
+      if (!isTarget && incomingCode) return;
 
-      if (!isMountedRef.current) return;
+      setTelemetry((prev) => {
+        // Truyền vị trí trước đó vào resolveRobotNodePosition để bảo toàn vị trí khi nhận sự kiện dwell/quảng cáo
+        const prevPos = prev
+          ? {
+              nodeId: prev.currentNodeId,
+              nodeName: prev.nearestLocation,
+              x: prev.x,
+              y: prev.y,
+              headingDeg: prev.headingDeg,
+            }
+          : undefined;
 
-      setTelemetry({
-        robotCode: code,
-        x: Math.max(0, Math.min(3, x)),
-        y: Math.max(0, Math.min(3, y)),
-        headingDeg: Math.round(heading % 360),
-        batteryPct: Math.max(0, Math.min(100, Math.round(battery))),
-        mode: mode.toUpperCase(),
-        status,
-        isOnline: status.toLowerCase() !== 'offline',
-        lastUpdated: new Date().toLocaleTimeString('vi-VN'),
-        nearestLocation: resolveLocation(x, y),
+        const resolved = resolveRobotNodePosition(data, prevPos);
+
+        let heading = resolved.headingDeg ?? prev?.headingDeg ?? 90;
+        const rawHeading = data.headingDeg ?? data.HeadingDeg ?? data.heading ?? data.Heading;
+        if (typeof rawHeading === 'number') {
+          heading = rawHeading;
+        } else {
+          const rawRad = data.headingRad ?? data.HeadingRad ?? data.heading_rad;
+          if (typeof rawRad === 'number') {
+            heading = (rawRad * 180) / Math.PI;
+          }
+        }
+
+        let batVal = prev?.batteryPct ?? 100;
+        const rawBat =
+          data.battery ??
+          data.Battery ??
+          data.batteryPct ??
+          data.BatteryPct ??
+          data.overallBattery ??
+          data.OverallBattery ??
+          data.deviceBattery ??
+          data.DeviceBattery ??
+          data.deviceBatteryPct ??
+          data.DeviceBatteryPct ??
+          data.batPct ??
+          data.BatPct;
+        if (typeof rawBat === 'number') {
+          batVal = rawBat;
+        }
+
+        const isCharging =
+          typeof data.isCharging === 'boolean'
+            ? data.isCharging
+            : typeof data.IsCharging === 'boolean'
+            ? data.IsCharging
+            : typeof data.deviceIsCharging === 'boolean'
+            ? data.deviceIsCharging
+            : typeof data.DeviceIsCharging === 'boolean'
+            ? data.DeviceIsCharging
+            : prev?.isCharging ?? false;
+
+        const deviceBat =
+          typeof data.deviceBattery === 'number'
+            ? data.deviceBattery
+            : typeof data.DeviceBattery === 'number'
+            ? data.DeviceBattery
+            : typeof data.deviceBatteryPct === 'number'
+            ? data.deviceBatteryPct
+            : typeof data.DeviceBatteryPct === 'number'
+            ? data.DeviceBatteryPct
+            : prev?.deviceBatteryPct;
+
+        const espBat =
+          typeof data.espBattery === 'number'
+            ? data.espBattery
+            : typeof data.EspBattery === 'number'
+            ? data.EspBattery
+            : typeof data.espBatteryPct === 'number'
+            ? data.espBatteryPct
+            : typeof data.EspBatteryPct === 'number'
+            ? data.EspBatteryPct
+            : prev?.espBatteryPct;
+
+        const espVolts =
+          typeof data.espBatteryVolts === 'number'
+            ? data.espBatteryVolts
+            : typeof data.EspBatteryVolts === 'number'
+            ? data.EspBatteryVolts
+            : typeof data.espVolts === 'number'
+            ? data.espVolts
+            : typeof data.EspVolts === 'number'
+            ? data.EspVolts
+            : prev?.espBatteryVolts;
+
+        const rawMode = data.mode ?? data.Mode ?? data.navState ?? data.NavState;
+        const rawStatus = data.status ?? data.Status ?? data.navStatus ?? data.NavStatus;
+        const mode = rawMode
+          ? String(rawMode).toUpperCase()
+          : rawStatus
+          ? String(rawStatus).toUpperCase()
+          : prev?.mode || 'IDLE';
+
+        const status = rawStatus
+          ? String(rawStatus)
+          : data.isOnline !== false && data.IsOnline !== false
+          ? prev?.status || 'Online'
+          : 'Offline';
+
+        console.log(
+          `[useRobotMqtt] 📍 Robot ${incomingCode}: Node ${resolved.nodeId} (${resolved.nodeName}) @ (${resolved.x.toFixed(2)}, ${resolved.y.toFixed(2)}) | Mode: ${mode}`
+        );
+
+        return {
+          robotCode: normalizedTarget,
+          currentNodeId: resolved.nodeId,
+          x: resolved.x,
+          y: resolved.y,
+          headingDeg: Math.round(heading % 360),
+          batteryPct: Math.max(0, Math.min(100, Math.round(batVal))),
+          isCharging,
+          deviceBatteryPct: deviceBat,
+          espBatteryPct: espBat,
+          espBatteryVolts: espVolts,
+          mode: mode.toUpperCase(),
+          status,
+          isOnline: status.toLowerCase() !== 'offline',
+          lastUpdated: new Date().toLocaleTimeString('vi-VN'),
+          nearestLocation: resolved.nodeName,
+        };
       });
 
       setPacketCount((prev) => prev + 1);
@@ -133,8 +263,12 @@ export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttRe
     client.onMessageArrived = (message) => {
       const topic = message.destinationName;
       const payload = message.payloadString;
-      if (topic.includes('/telemetry') || topic.includes('/status')) {
-        processIncomingPayload(payload);
+      if (
+        topic.includes('/telemetry') ||
+        topic.includes('/status') ||
+        topic.includes('/navigation_status')
+      ) {
+        processIncomingPayload(payload, topic);
       }
     };
 
@@ -151,10 +285,13 @@ export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttRe
           console.log('[useRobotMqtt] Successfully connected to HiveMQ Cloud MQTT WSS!');
           setConnectionState('MQTT_WSS');
 
-          // Subscribe to both target robot and wildcard telemetry
+          // Subscribe to telemetry, status, and navigation_status
           client.subscribe(`smartmarketbot/robot/${targetRobotCode}/telemetry`, { qos: 0 });
           client.subscribe(`smartmarketbot/robot/${targetRobotCode}/status`, { qos: 0 });
+          client.subscribe(`smartmarketbot/robot/${targetRobotCode}/navigation_status`, { qos: 0 });
           client.subscribe(`smartmarketbot/robot/+/telemetry`, { qos: 0 });
+          client.subscribe(`smartmarketbot/robot/+/status`, { qos: 0 });
+          client.subscribe(`smartmarketbot/robot/+/navigation_status`, { qos: 0 });
         },
         onFailure: (err) => {
           if (!isMountedRef.current) return;
@@ -167,39 +304,105 @@ export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttRe
       startSignalRFallback();
     }
 
-    // 2. SignalR Fallback Hub connection
+    // 2. Start SignalR Hub connection alongside MQTT for real-time tablet battery & telemetry
+    startSignalRFallback();
+
     function startSignalRFallback() {
       if (signalrRef.current) return;
-      const hubUrl = `${API_BASE_URL.replace(/\/api$/, '')}/hubs/robot`;
+      const isNgrok = API_BASE_URL.includes('ngrok');
+      const cleanBase = API_BASE_URL.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+      const hubUrl = isNgrok
+        ? `${cleanBase}/hubs/robot?ngrok-skip-browser-warning=true`
+        : `${cleanBase}/hubs/robot`;
+
       const hub = new signalR.HubConnectionBuilder()
         .withUrl(hubUrl, {
-          transport: signalR.HttpTransportType.WebSockets | signalR.HttpTransportType.LongPolling,
+          skipNegotiation: true,
+          transport: signalR.HttpTransportType.WebSockets,
         })
-        .withAutomaticReconnect()
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+        .configureLogging(signalR.LogLevel.Warning)
         .build();
 
       signalrRef.current = hub;
 
       hub.on('telemetry', (data: any) => {
         if (!isMountedRef.current) return;
-        processIncomingPayload(typeof data === 'string' ? data : JSON.stringify(data));
+        processIncomingPayload(typeof data === 'string' ? data : JSON.stringify(data), 'signalr/telemetry');
+      });
+      hub.on('navigationStatus', (data: any) => {
+        if (!isMountedRef.current) return;
+        processIncomingPayload(typeof data === 'string' ? data : JSON.stringify(data), 'signalr/navigationStatus');
+      });
+      hub.on('status', (data: any) => {
+        if (!isMountedRef.current) return;
+        processIncomingPayload(typeof data === 'string' ? data : JSON.stringify(data), 'signalr/status');
       });
 
       hub.start()
-        .then(() => {
+        .then(async () => {
           if (isMountedRef.current) {
-            console.log('[useRobotMqtt] SignalR Fallback Hub connected successfully');
-            setConnectionState('SIGNALR_FALLBACK');
+            console.log('[useRobotMqtt] SignalR Hub connected successfully via direct WebSocket');
+            if (connectionState !== 'MQTT_WSS') {
+              setConnectionState('SIGNALR_FALLBACK');
+            }
+            try {
+              await hub.invoke('JoinRobotGroup', targetRobotCode);
+            } catch {}
           }
         })
         .catch((e) => {
-          console.warn('[useRobotMqtt] SignalR Fallback Hub failed to connect:', e);
-          if (isMountedRef.current) setConnectionState('DISCONNECTED');
+          console.log('[useRobotMqtt] SignalR fallback inactive (MQTT WSS is primary):', e?.message || e);
         });
     }
 
+    // 3. Periodic API sync for battery & online status
+    const syncApiRobot = async () => {
+      try {
+        const cleanBase = API_BASE_URL.replace(/\/$/, '');
+        const res = await fetch(`${cleanBase}/api/robots`, {
+          headers: { 'ngrok-skip-browser-warning': 'true', Accept: 'application/json' },
+        });
+        if (!res.ok) return;
+        const robots: any[] = await res.json();
+        const r = robots.find((item: any) =>
+          item.robotCode === targetRobotCode ||
+          (targetRobotCode === 'RB0001' && item.robotCode === 'RB001') ||
+          (targetRobotCode === 'RB001' && item.robotCode === 'RB0001')
+        ) || robots[0];
+
+        if (r && isMountedRef.current) {
+          setTelemetry((prev) => {
+            const rawBat = r.batteryPct ?? r.deviceBatteryPct;
+            const bat = typeof rawBat === 'number' ? rawBat : prev?.batteryPct ?? 100;
+            return {
+              robotCode: normalizedTarget,
+              currentNodeId: prev?.currentNodeId ?? 8,
+              x: prev?.x ?? SUPERMARKET_NODES[8].mapX,
+              y: prev?.y ?? SUPERMARKET_NODES[8].mapY,
+              headingDeg: prev?.headingDeg ?? SUPERMARKET_NODES[8].headingDeg,
+              batteryPct: Math.max(0, Math.min(100, Math.round(bat))),
+              isCharging: r.deviceIsCharging ?? prev?.isCharging ?? false,
+              deviceBatteryPct: r.deviceBatteryPct ?? prev?.deviceBatteryPct,
+              espBatteryPct: r.espBatteryPct ?? prev?.espBatteryPct,
+              espBatteryVolts: r.espBatteryVolts ?? prev?.espBatteryVolts,
+              mode: (r.mode || prev?.mode || 'IDLE').toUpperCase(),
+              status: r.status || prev?.status || 'Online',
+              isOnline: r.status ? r.status.toLowerCase() !== 'offline' : true,
+              lastUpdated: prev?.lastUpdated || new Date().toLocaleTimeString('vi-VN'),
+              nearestLocation: prev?.nearestLocation ?? SUPERMARKET_NODES[8].name,
+            };
+          });
+        }
+      } catch {}
+    };
+
+    syncApiRobot();
+    const pollInterval = setInterval(syncApiRobot, 4000);
+
     return () => {
       isMountedRef.current = false;
+      clearInterval(pollInterval);
       try {
         if (client.isConnected()) {
           client.disconnect();

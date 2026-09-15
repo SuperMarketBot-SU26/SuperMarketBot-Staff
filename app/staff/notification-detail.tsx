@@ -47,6 +47,7 @@ export default function NotificationDetailScreen() {
               priority: "High",
               hasWarehouseStock: true,
               aisleId: 2,
+              aisleNodeId: 4,
             }
           });
         }

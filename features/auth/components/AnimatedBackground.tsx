@@ -97,7 +97,7 @@ export function AnimatedBackground() {
   
   const bgColor = "#ffffff"; // Always pure white background
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: bgColor, overflow: "hidden", pointerEvents: "none" as any }]}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: bgColor, overflow: "hidden", pointerEvents: "none" as any }]}>
       <Blob
         size={width * 1.2}
         color={color1}
@@ -128,7 +128,7 @@ export function AnimatedBackground() {
       {/* We add an overlay view to soften the blobs further, giving a pseudo-blur effect to the background itself */}
       <View
         style={[
-          StyleSheet.absoluteFillObject,
+          StyleSheet.absoluteFill,
           { backgroundColor: isDark ? "rgba(17,24,39,0.7)" : "rgba(255,255,255,0.6)" }, // Soften overlay
         ]}
       />
