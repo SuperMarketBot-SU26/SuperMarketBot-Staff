@@ -114,27 +114,23 @@ export default function TasksScreen() {
 
   return (
     <View style={[styles.page, { backgroundColor: "#f7faf7" }]}>
-      <View style={styles.topBarRow}>
-        <View style={{ flex: 1 }}>
-          <TasksHeader
-            totalPending={totalPending}
-            category={category}
-            pendingHH={pendingHH}
-            pendingRB={pendingRB}
-            onChangeCategory={setCategory}
-          />
-        </View>
-
-        {/* Create Task Button */}
-        {category === "hangHoa" && (
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => setModalVisible(true)}
-          >
-            <Text style={styles.addBtnText}>+ Báo OOS</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <TasksHeader
+        totalPending={totalPending}
+        category={category}
+        pendingHH={pendingHH}
+        pendingRB={pendingRB}
+        onChangeCategory={setCategory}
+        actionButton={
+          category === "hangHoa" ? (
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => setModalVisible(true)}
+            >
+              <Text style={styles.addBtnText}>+ Báo OOS</Text>
+            </TouchableOpacity>
+          ) : null
+        }
+      />
 
       <ScrollView
         style={styles.taskList}

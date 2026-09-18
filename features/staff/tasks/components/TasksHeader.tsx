@@ -12,6 +12,7 @@ interface TasksHeaderProps {
   pendingHH: number;
   pendingRB: number;
   onChangeCategory: (next: Category) => void;
+  actionButton?: React.ReactNode;
 }
 
 export function TasksHeader({
@@ -20,6 +21,7 @@ export function TasksHeader({
   pendingHH,
   pendingRB,
   onChangeCategory,
+  actionButton,
 }: TasksHeaderProps) {
   const isDark = useIsDark();
   const headerBg = isDark ? palette.gray[900] : "#ffffff";
@@ -38,15 +40,22 @@ export function TasksHeader({
       ]}
     >
       <View style={styles.pageHeaderTop}>
-        <View>
-          <Text
-            style={[
-              styles.pageTitle,
-              { color: isDark ? "#ffffff" : palette.gray[900] },
-            ]}
-          >
-            Cảnh Báo
-          </Text>
+        <View style={{ flex: 1, paddingRight: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text
+              style={[
+                styles.pageTitle,
+                { color: isDark ? "#ffffff" : palette.gray[900] },
+              ]}
+            >
+              Cảnh Báo
+            </Text>
+            {totalPending > 0 ? (
+              <View style={styles.badgeCount}>
+                <Text style={styles.badgeCountText}>{totalPending}</Text>
+              </View>
+            ) : null}
+          </View>
           <Text
             style={[
               styles.pageSubtitle,
@@ -57,11 +66,7 @@ export function TasksHeader({
           </Text>
         </View>
 
-        {totalPending > 0 ? (
-          <View style={styles.badgeCount}>
-            <Text style={styles.badgeCountText}>{totalPending}</Text>
-          </View>
-        ) : null}
+        {actionButton}
       </View>
 
       <View

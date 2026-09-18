@@ -55,24 +55,74 @@ export default function StaffIndexPage() {
         {/* We removed the old header since CustomHeader handles it */}
 
       <Animated.View entering={FadeInDown.delay(200).duration(600).springify()} style={styles.statsContainer}>
-        <View style={styles.statCard}>
+        <Pressable
+          style={({ pressed }) => [styles.statCard, pressed && { opacity: 0.75 }]}
+          onPress={() => router.push('/staff/notifications')}
+        >
           <Ionicons name="cube-outline" size={32} color="#4CAF50" />
           {loading ? (
             <ActivityIndicator style={{ marginVertical: 8 }} color="#4CAF50" />
           ) : (
             <Text style={styles.statValue}>{taskCount}</Text>
           )}
-          <Text style={styles.statLabel}>Kệ cần châm</Text>
-        </View>
-        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>Kệ cần châm →</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.statCard, pressed && { opacity: 0.75 }]}
+          onPress={() => router.push('/staff/robots')}
+        >
           <Ionicons name="hardware-chip-outline" size={32} color="#2196F3" />
           {loading ? (
             <ActivityIndicator style={{ marginVertical: 8 }} color="#2196F3" />
           ) : (
              <Text style={styles.statValue}>{robotCount}</Text>
           )}
-          <Text style={styles.statLabel}>Robot sẵn sàng</Text>
-        </View>
+          <Text style={styles.statLabel}>Robot sẵn sàng →</Text>
+        </Pressable>
+      </Animated.View>
+
+      {/* Quick Action Navigation Toolbar */}
+      <Animated.View entering={FadeInDown.delay(250).duration(600).springify()} style={styles.quickActionsContainer}>
+        <Pressable
+          style={({ pressed }) => [styles.quickActionItem, pressed && { opacity: 0.7 }]}
+          onPress={() => router.push('/staff/map')}
+        >
+          <View style={[styles.quickActionIcon, { backgroundColor: '#E8F5E9' }]}>
+            <Ionicons name="map-outline" size={20} color="#2E7D32" />
+          </View>
+          <Text style={styles.quickActionLabel}>Bản đồ 2D</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.quickActionItem, pressed && { opacity: 0.7 }]}
+          onPress={() => router.push('/staff/robots')}
+        >
+          <View style={[styles.quickActionIcon, { backgroundColor: '#E3F2FD' }]}>
+            <Ionicons name="hardware-chip-outline" size={20} color="#1565C0" />
+          </View>
+          <Text style={styles.quickActionLabel}>Robot AMR</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.quickActionItem, pressed && { opacity: 0.7 }]}
+          onPress={() => router.push('/staff/tasks')}
+        >
+          <View style={[styles.quickActionIcon, { backgroundColor: '#FFF3E0' }]}>
+            <Ionicons name="checkbox-outline" size={20} color="#E65100" />
+          </View>
+          <Text style={styles.quickActionLabel}>Nhiệm vụ</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.quickActionItem, pressed && { opacity: 0.7 }]}
+          onPress={() => router.push('/staff/notifications')}
+        >
+          <View style={[styles.quickActionIcon, { backgroundColor: '#F3E5F5' }]}>
+            <Ionicons name="notifications-outline" size={20} color="#7B1FA2" />
+          </View>
+          <Text style={styles.quickActionLabel}>Thông báo</Text>
+        </Pressable>
       </Animated.View>
 
       {/* 6 Shelves Density Overview on Home */}
@@ -113,12 +163,20 @@ export default function StaffIndexPage() {
           <Text style={styles.robotLocText}>
             📍 Tọa độ: ({primaryRobot?.position?.x?.toFixed(1) ?? '1.5'}, {primaryRobot?.position?.y?.toFixed(1) ?? '1.5'})
           </Text>
-          <Pressable
-            onPress={() => router.push('/staff/map')}
-            style={styles.robotMapBtn}
-          >
-            <Text style={styles.robotMapBtnText}>Theo dõi trên bản đồ →</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={() => router.push(`/staff/robot-detail?code=${primaryRobot?.robotCode === 'RB001' ? 'RB0001' : (primaryRobot?.robotCode || 'RB0001')}` as any)}
+              style={[styles.robotMapBtn, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe', borderWidth: 1 }]}
+            >
+              <Text style={[styles.robotMapBtnText, { color: '#1d4ed8' }]}>⚡ Chi tiết</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/staff/map')}
+              style={styles.robotMapBtn}
+            >
+              <Text style={styles.robotMapBtnText}>Bản đồ →</Text>
+            </Pressable>
+          </View>
         </View>
       </Animated.View>
 
@@ -289,7 +347,40 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 30,
+    marginBottom: 14,
+  },
+  quickActionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  quickActionItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  quickActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
   },
   statCard: {
     backgroundColor: '#fff',

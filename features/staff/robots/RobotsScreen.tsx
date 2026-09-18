@@ -21,8 +21,11 @@ import { createRobot, deleteRobot } from "@/shared/api/robots";
 import { InlineBanner } from "@/shared/ui";
 import { RobotCard } from "./components/RobotCard";
 import { SummaryStrip } from "./components/SummaryStrip";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function RobotsScreen() {
+  const router = useRouter();
   const pageBg = "#f7faf7";
   const headerBg = "#ffffff";
   const headerBorder = "rgba(20,83,45,0.12)";
@@ -63,9 +66,17 @@ export default function RobotsScreen() {
       {/* Page Header with CRUD Action */}
       <View style={[styles.pageHeader, { backgroundColor: headerBg, borderBottomColor: headerBorder }]}>
         <View style={styles.headerTitleRow}>
-          <View>
-            <Text style={styles.pageTitle}>Danh Sách Robot</Text>
-            <Text style={styles.pageSubtitle}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={20} color="#15803d" />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            <Text style={styles.pageTitle} numberOfLines={1}>Danh Sách Robot</Text>
+            <Text style={styles.pageSubtitle} numberOfLines={1}>
               {robots ? `${robots.length} robot trong hệ thống (API Live)` : "Đang tải danh sách..."}
             </Text>
           </View>
@@ -75,7 +86,7 @@ export default function RobotsScreen() {
             style={styles.addBtn}
             onPress={() => setModalVisible(true)}
           >
-            <Text style={styles.addBtnText}>+ Thêm Robot</Text>
+            <Text style={styles.addBtnText}>+ Thêm</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -191,6 +202,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
   pageTitle: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5, color: "#11201a" },
   pageSubtitle: { fontSize: 12, marginTop: 2, fontWeight: "600", color: "#4a5a52" },

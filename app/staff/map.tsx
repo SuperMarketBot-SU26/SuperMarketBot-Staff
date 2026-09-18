@@ -94,19 +94,17 @@ export default function StaffMapPage() {
 
       {/* ── MQTT LIVE TELEMETRY BAR ── */}
       <View style={styles.mqttStatusBar}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
           <View style={[styles.pulseDot, { backgroundColor: connectionColor }]} />
-          <Text style={styles.mqttStatusText}>
+          <Text style={[styles.mqttStatusText, { flex: 1 }]} numberOfLines={1}>
             {connectionLabel}
           </Text>
           <View style={styles.topicBadge}>
-            <Text style={styles.topicBadgeText}>
-              {`RB0001 · #${packetCount} · ~${latencyMs}ms`}
+            <Text style={styles.topicBadgeText} numberOfLines={1}>
+              {`RB0001 · ~${latencyMs}ms`}
             </Text>
           </View>
         </View>
-
-
       </View>
 
       {/* ── RESPONSIVE MAP VIEWPORT ── */}
@@ -132,21 +130,21 @@ export default function StaffMapPage() {
         <Animated.View entering={FadeInUp.duration(400)} layout={Layout.springify()} style={styles.hudCard}>
           {/* Header Row */}
           <Pressable onPress={() => setHudExpanded(!hudExpanded)} style={styles.hudHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, paddingRight: 6 }}>
               <View style={styles.robotAvatar}>
                 <Ionicons name="hardware-chip" size={16} color="#15803d" />
               </View>
-              <View>
+              <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.robotName}>SmartMarketBot 01 ({normalizeRobotCode(telemetry.robotCode)})</Text>
+                  <Text style={styles.robotName} numberOfLines={1}>RB0001</Text>
                   <View style={[styles.miniBadge, { backgroundColor: isConnected ? '#dcfce7' : '#fee2e2' }]}>
                     <Text style={{ fontSize: 10, fontWeight: '700', color: isConnected ? '#15803d' : '#b91c1c' }}>
                       {mode}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.robotLocText}>
-                  📍 {telemetry.currentNodeId ? `Node ${telemetry.currentNodeId} · ` : ''}{telemetry.nearestLocation} ({telemetry.x.toFixed(2)}m, {telemetry.y.toFixed(2)}m) · {telemetry.headingDeg}°
+                <Text style={styles.robotLocText} numberOfLines={1}>
+                  📍 {telemetry.currentNodeId ? `Node ${telemetry.currentNodeId} · ` : ''}{telemetry.nearestLocation}
                 </Text>
               </View>
             </View>
