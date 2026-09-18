@@ -1,16 +1,37 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/features/auth';
 import { useRouter } from 'expo-router';
 import { CustomHeader, AnimatedButton } from '@/shared/ui';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useStaffRealtime } from '@/shared/realtime/StaffRealtimeContext';
+import { getStaffProfile, type StaffProfileDto } from '@/shared/api';
 
 export default function ProfilePage() {
   const { logout, user } = useAuth();
   const router = useRouter();
   const { connected } = useStaffRealtime();
+
+  const [profile, setProfile] = useState<StaffProfileDto | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadProfile() {
+      try {
+        setIsLoading(true);
+        const data = await getStaffProfile(user?.userId);
+        if (isMounted) setProfile(data);
+      } catch (err) {
+        console.warn('Failed to load staff profile:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+    loadProfile();
+    return () => { isMounted = false; };
+  }, [user?.userId]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -33,6 +54,14 @@ export default function ProfilePage() {
     );
   };
 
+  const formattedJoinedDate = profile?.joinedAt 
+    ? new Date(profile.joinedAt).toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      })
+    : '---';
+
   return (
     <View style={styles.container}>
       <CustomHeader title="Hồ sơ cá nhân" subtitle="Tài khoản nội bộ" />
@@ -44,42 +73,108 @@ export default function ProfilePage() {
           <View style={styles.avatarContainer}>
             <Ionicons name="person" size={54} color="#15803d" />
           </View>
-          <Text style={styles.name}>{user?.fullName || 'Nhân viên Siêu thị'}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>Nhân viên Vận hành</Text>
+          <Text style={styles.name}>{profile?.fullName || user?.fullName || 'Nhân viên Siêu thị'}</Text>
+          
+          <View style={styles.badgeRow}>
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleText}>{profile?.roleTitle || 'Nhân viên Vận hành'}</Text>
+            </View>
+            <View style={styles.codeBadge}>
+              <Text style={styles.codeText}>{profile?.staffCode || (user?.userId ? `#NV${String(user.userId).padStart(4, '0')}` : '#NV0001')}</Text>
+            </View>
           </View>
 
-          {/* Realtime connection indicator */}
-          <View style={styles.connectionBadge}>
-            <View style={[styles.statusDot, { backgroundColor: connected ? '#10B981' : '#F59E0B' }]} />
-            <Text style={styles.connectionText}>
-              {connected ? 'Hệ thống Realtime: Kết nối' : 'Đang kết nối lại...'}
-            </Text>
+          {/* Realtime & Shift indicator */}
+          <View style={styles.metaRow}>
+            <View style={styles.connectionBadge}>
+              <View style={[styles.statusDot, { backgroundColor: connected ? '#10B981' : '#F59E0B' }]} />
+              <Text style={styles.connectionText}>
+                {connected ? 'Realtime: Đã kết nối' : 'Đang kết nối lại...'}
+              </Text>
+            </View>
+            <View style={[styles.connectionBadge, { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' }]}>
+              <View style={[styles.statusDot, { backgroundColor: '#15803d' }]} />
+              <Text style={[styles.connectionText, { color: '#15803d', fontWeight: '700' }]}>
+                {profile?.shiftStatus || 'Đang trong ca trực'}
+              </Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Operational Stats: Pending vs Completed */}
+        <Animated.View entering={FadeInDown.delay(100).duration(600).springify()} style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <View style={styles.statIconWrapPending}>
+              <Ionicons name="hourglass-outline" size={20} color="#D97706" />
+            </View>
+            <Text style={styles.statValue}>{profile?.pendingTasksCount ?? 0}</Text>
+            <Text style={styles.statLabel}>Chờ tiếp hàng</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={styles.statIconWrapDone}>
+              <Ionicons name="checkmark-done-outline" size={20} color="#15803d" />
+            </View>
+            <Text style={[styles.statValue, { color: '#15803d' }]}>{profile?.completedTodayCount ?? 0}</Text>
+            <Text style={styles.statLabel}>Đã xong hôm nay</Text>
           </View>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200).duration(600).springify()} style={styles.content}>
-          <Text style={styles.sectionHeaderTitle}>Thông tin tài khoản</Text>
+          <Text style={styles.sectionHeaderTitle}>Thông tin công tác</Text>
           <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <Ionicons name="barcode-outline" size={20} color="#15803d" style={styles.infoIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoSubLabel}>Mã nhân viên</Text>
+                <Text style={styles.infoText}>{profile?.staffCode || '#NV0001'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Ionicons name="call-outline" size={20} color="#15803d" style={styles.infoIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoSubLabel}>Số điện thoại</Text>
+                <Text style={styles.infoText}>{profile?.phone || 'Chưa cập nhật'}</Text>
+              </View>
+            </View>
+
             <View style={styles.infoRow}>
               <Ionicons name="mail-outline" size={20} color="#15803d" style={styles.infoIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoSubLabel}>Email đăng nhập</Text>
-                <Text style={styles.infoText}>{user?.email || 'staff@smartmarket.local'}</Text>
+                <Text style={styles.infoSubLabel}>Email công vụ</Text>
+                <Text style={styles.infoText}>{profile?.email || user?.email || 'staff@smartmarket.local'}</Text>
               </View>
             </View>
+
             <View style={styles.infoRow}>
-              <Ionicons name="business-outline" size={20} color="#15803d" style={styles.infoIcon} />
+              <Ionicons name="storefront-outline" size={20} color="#15803d" style={styles.infoIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoSubLabel}>Khu vực làm việc</Text>
-                <Text style={styles.infoText}>Chi nhánh Siêu thị Trung tâm (Khu A-B-C)</Text>
+                <Text style={styles.infoSubLabel}>Chi nhánh làm việc</Text>
+                <Text style={styles.infoText}>{profile?.branchName || 'Chi nhánh Siêu thị Trung tâm'}</Text>
               </View>
             </View>
-            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+
+            <View style={styles.infoRow}>
+              <Ionicons name="map-outline" size={20} color="#15803d" style={styles.infoIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoSubLabel}>Khu vực phụ trách</Text>
+                <Text style={styles.infoText}>{profile?.workingZones || 'Khu A, Khu B, Khu C'}</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoRow}>
               <Ionicons name="shield-checkmark-outline" size={20} color="#15803d" style={styles.infoIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.infoSubLabel}>Quyền hạn</Text>
-                <Text style={styles.infoText}>Điều khiển Robot & Châm hàng Kệ</Text>
+                <Text style={styles.infoSubLabel}>Quyền hạn vận hành</Text>
+                <Text style={styles.infoText}>{profile?.permissions || 'Điều khiển Robot & Châm hàng Kệ'}</Text>
+              </View>
+            </View>
+
+            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+              <Ionicons name="calendar-outline" size={20} color="#15803d" style={styles.infoIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.infoSubLabel}>Ngày nhận việc</Text>
+                <Text style={styles.infoText}>{formattedJoinedDate}</Text>
               </View>
             </View>
           </View>
@@ -89,7 +184,7 @@ export default function ProfilePage() {
           </View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(400).duration(600).springify()} style={styles.logoutContainer}>
+        <Animated.View entering={FadeInDown.delay(300).duration(600).springify()} style={styles.logoutContainer}>
           <AnimatedButton 
             title="Đăng xuất tài khoản" 
             onPress={handleLogout}
@@ -100,6 +195,7 @@ export default function ProfilePage() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -140,17 +236,42 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textAlign: 'center',
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
   roleBadge: {
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    marginBottom: 10,
   },
   roleText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#15803d',
+  },
+  codeBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  codeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
   connectionBadge: {
     flexDirection: 'row',
@@ -173,6 +294,56 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
   },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(20,83,45,0.08)',
+  },
+  statIconWrapPending: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statIconWrapDone: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+
   content: {
     padding: 16,
   },

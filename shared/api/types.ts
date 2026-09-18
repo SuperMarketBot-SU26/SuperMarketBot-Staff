@@ -61,7 +61,25 @@ export interface LogoutRequest {
   refreshToken: string;
 }
 
+export interface StaffProfileDto {
+  accountId: number;
+  staffCode: string;
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  role: string;
+  roleTitle: string;
+  branchName: string;
+  workingZones: string;
+  permissions: string;
+  shiftStatus: string;
+  pendingTasksCount: number;
+  completedTodayCount: number;
+  joinedAt: string;
+}
+
 // ─── Robots ────────────────────────────────────────────────────────────────
+
 export interface RobotDto {
   robotId: number;
   robotName: string;

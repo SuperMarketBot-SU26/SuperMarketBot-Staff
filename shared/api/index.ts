@@ -28,7 +28,7 @@ export {
     listRobotsWithPositions
 } from "./robots";
 
-export { listRestockTasks, mapRestockPriority } from "./tasks";
+export { listRestockTasks, mapRestockPriority, getStaffProfile } from "./tasks";
 
 export { getLatestMap, getMapById, optimizeRoute } from "./map";
 export type { OptimizeRouteRequest, OptimizeRouteResponse } from "./map";

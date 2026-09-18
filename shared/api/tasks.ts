@@ -12,10 +12,11 @@ import type {
     RestockPriority,
     RestockTaskDto,
     RestockTaskListResponseDto,
+    StaffProfileDto,
     StaffTask,
 } from "./types";
 
-export type { RestockPriority, RestockTaskDto, StaffTask };
+export type { RestockPriority, RestockTaskDto, StaffProfileDto, StaffTask };
 
 function isRestockError(t: RestockTaskDto): boolean {
   return t.currentQuantity === 0 || t.priority === "High";
@@ -102,3 +103,13 @@ export async function deleteRestockTask(taskId: number): Promise<boolean> {
   });
   return true;
 }
+
+/**
+ * [PROFILE] Fetch staff profile and work status.
+ */
+export async function getStaffProfile(accountId?: number): Promise<StaffProfileDto> {
+  const query = accountId ? `?accountId=${accountId}` : "";
+  const { data } = await apiRequest<StaffProfileDto>(`/api/staff/profile${query}`);
+  return data;
+}
+
