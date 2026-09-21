@@ -19,7 +19,9 @@ type PatrolEventName =
   | "OutOfStockAlert"
   | "ShelfPatrolScanFailed"
   | "ShelfDensityUpdated"
-  | "ShelfRestocked";
+  | "ShelfRestocked"
+  | "RobotLowBatteryAlert"
+  | "mapLayoutUpdated";
 
 export interface StaffRealtimeEvent {
   name: PatrolEventName;
@@ -28,10 +30,13 @@ export interface StaffRealtimeEvent {
 }
 
 interface ActiveAlertBanner {
+  title?: string;
   shelf: string;
-  occupancy: string | number;
-  empty: string | number;
+  occupancy?: string | number;
+  empty?: string | number;
+  message?: string;
   receivedAt: string;
+  isBatteryAlert?: boolean;
 }
 
 interface StaffRealtimeValue {
@@ -134,6 +139,27 @@ export function StaffRealtimeProvider({ children }: { children: React.ReactNode 
           if (mounted) setActiveBanner(null);
         }, 9000);
       }
+
+      if (name === "RobotLowBatteryAlert") {
+        const robotCode = String(payload.robotCode ?? "RB001");
+        const batteryPct = String(payload.batteryPct ?? "12");
+        const dockId = payload.dockNodeId ? `#${payload.dockNodeId}` : "Dock";
+
+        playAlertChime();
+
+        setActiveBanner({
+          title: "🪫 CẢNH BÁO PIN YẾU ROBOT (REALTIME)",
+          shelf: `Robot ${robotCode} · Pin ${batteryPct}% (< 15%)`,
+          message: `Robot đang tự động quay về trạm sạc ${dockId}. Toàn bộ hệ thống tiếp nhận khách tạm thời đóng băng.`,
+          receivedAt: new Date().toLocaleTimeString("vi-VN"),
+          isBatteryAlert: true,
+        });
+
+        if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+        bannerTimerRef.current = setTimeout(() => {
+          if (mounted) setActiveBanner(null);
+        }, 12000);
+      }
     };
 
     const events: PatrolEventName[] = [
@@ -143,6 +169,8 @@ export function StaffRealtimeProvider({ children }: { children: React.ReactNode 
       "ShelfPatrolScanFailed",
       "ShelfDensityUpdated",
       "ShelfRestocked",
+      "RobotLowBatteryAlert",
+      "mapLayoutUpdated",
     ];
     events.forEach((name) => connection.on(name, (payload) => receive(name, payload)));
 
@@ -191,21 +219,53 @@ export function StaffRealtimeProvider({ children }: { children: React.ReactNode 
       {/* Floating Realtime Alert Notification Banner (High Z-Index) */}
       {activeBanner && (
         <View style={styles.bannerWrapper} pointerEvents="box-none">
-          <Pressable style={styles.bannerCard} onPress={handleBannerClick}>
-            <View style={styles.bannerIconBox}>
-              <Ionicons name="warning" size={26} color="#EF4444" />
+          <Pressable
+            style={[
+              styles.bannerCard,
+              activeBanner.isBatteryAlert && { borderColor: "#DC2626", backgroundColor: "#FFF7ED" },
+            ]}
+            onPress={handleBannerClick}
+          >
+            <View
+              style={[
+                styles.bannerIconBox,
+                activeBanner.isBatteryAlert && { backgroundColor: "#FEE2E2" },
+              ]}
+            >
+              <Ionicons
+                name={activeBanner.isBatteryAlert ? "battery-dead" : "warning"}
+                size={26}
+                color={activeBanner.isBatteryAlert ? "#DC2626" : "#EF4444"}
+              />
             </View>
             <View style={styles.bannerContent}>
               <View style={styles.bannerHeaderRow}>
-                <Text style={styles.bannerTitle}>🚨 CẢNH BÁO CẦN NHẬP HÀNG (REALTIME)</Text>
+                <Text
+                  style={[
+                    styles.bannerTitle,
+                    activeBanner.isBatteryAlert && { color: "#DC2626" },
+                  ]}
+                >
+                  {activeBanner.title || "🚨 CẢNH BÁO CẦN NHẬP HÀNG (REALTIME)"}
+                </Text>
                 <Text style={styles.bannerTime}>{activeBanner.receivedAt}</Text>
               </View>
-              <Text style={styles.bannerBody} numberOfLines={2}>
-                <Text style={{ fontWeight: "700", color: "#1E293B" }}>{activeBanner.shelf}</Text>
-                {" · "}Mức còn hàng: <Text style={{ fontWeight: "700", color: "#B45309" }}>{activeBanner.occupancy}%</Text>
-                {activeBanner.empty ? (<>{" · "}Trống: <Text style={{ fontWeight: "700", color: "#DC2626" }}>{activeBanner.empty} slot</Text></>) : null}
+              {activeBanner.isBatteryAlert ? (
+                <Text style={styles.bannerBody} numberOfLines={2}>
+                  <Text style={{ fontWeight: "700", color: "#DC2626" }}>{activeBanner.shelf}</Text>
+                  {" — "}
+                  {activeBanner.message}
+                </Text>
+              ) : (
+                <Text style={styles.bannerBody} numberOfLines={2}>
+                  <Text style={{ fontWeight: "700", color: "#1E293B" }}>{activeBanner.shelf}</Text>
+                  {" · "}Mức còn hàng: <Text style={{ fontWeight: "700", color: "#B45309" }}>{activeBanner.occupancy}%</Text>
+                  {activeBanner.empty ? (<>{" · "}Trống: <Text style={{ fontWeight: "700", color: "#DC2626" }}>{activeBanner.empty} slot</Text></>) : null}
+                </Text>
+              )}
+              <Text style={styles.bannerAction}>
+                {activeBanner.isBatteryAlert ? "Chạm để theo dõi trạng thái trạm sạc ➔" : "Chạm để mở trang Thông Báo và xếp hàng ➔"}
               </Text>
-              <Text style={styles.bannerAction}>Chạm để mở trang Thông Báo và xếp hàng ➔</Text>
             </View>
             <Pressable
               style={styles.closeBtn}
