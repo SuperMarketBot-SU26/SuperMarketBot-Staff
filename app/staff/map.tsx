@@ -77,7 +77,7 @@ export default function StaffMapPage() {
   const mode = telemetry?.mode ?? 'IDLE';
 
   const connectionLabel = connectionState === 'MQTT_WSS'
-    ? 'MQTT Live (HiveMQ Cloud WSS:8884)'
+    ? 'MQTT Live (EMQX Cloud WSS:8084)'
     : connectionState === 'SIGNALR_FALLBACK'
     ? 'SignalR Live (/hubs/robot)'
     : 'Đang kết nối MQTT...';

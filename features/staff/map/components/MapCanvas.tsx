@@ -160,21 +160,38 @@ export function MapCanvas({
       {/* ── 5. Outer Boundary Walls & Entrance Door ── */}
       <G>
         <Line x1={0} y1={0} x2={3000} y2={0} stroke={wallStroke} strokeWidth={38} strokeLinecap="round" />
-        <Line x1={0} y1={0} x2={0} y2={3000} stroke={wallStroke} strokeWidth={38} strokeLinecap="round" />
         <Line x1={3000} y1={0} x2={3000} y2={3000} stroke={wallStroke} strokeWidth={38} strokeLinecap="round" />
+        <Line x1={0} y1={3000} x2={3000} y2={3000} stroke={wallStroke} strokeWidth={38} strokeLinecap="round" />
 
-        {/* Bottom wall with entrance door gap */}
-        <Line x1={0} y1={3000} x2={s(DOOR.x)} y2={3000} stroke={wallStroke} strokeWidth={38} />
-        <Line x1={s(DOOR.x + DOOR.width)} y1={3000} x2={3000} y2={3000} stroke={wallStroke} strokeWidth={38} />
+        {/* Left wall with entrance door gap */}
+        <Line x1={0} y1={0} x2={0} y2={s(DOOR.y)} stroke={wallStroke} strokeWidth={38} strokeLinecap="round" />
+        <Line x1={0} y1={s(DOOR.y + DOOR.height)} x2={0} y2={3000} stroke={wallStroke} strokeWidth={38} strokeLinecap="round" />
 
         {/* Door Entry Marker */}
-        <Line x1={s(DOOR.x)} y1={3000} x2={s(DOOR.x + 0.22)} y2={2780} stroke="#16a34a" strokeWidth={20} />
-        <SvgText x={s(DOOR.x + 0.22)} y={3150} fill="#15803d" fontSize={75} fontWeight="800">
-          CỬA VÀO ➔
+        <Rect
+          x={s(DOOR.x)}
+          y={s(DOOR.y)}
+          width={s(DOOR.width)}
+          height={s(DOOR.height)}
+          rx={15}
+          fill={isDark ? "rgba(16, 185, 129, 0.15)" : "#ecfdf5"}
+          stroke="#10b981"
+          strokeWidth={8}
+        />
+        <SvgText
+          x={s(DOOR.x + DOOR.width / 2)}
+          y={s(DOOR.y + DOOR.height / 2)}
+          fill="#15803d"
+          fontSize={38}
+          fontWeight="800"
+          textAnchor="middle"
+          transform={`rotate(-90, ${s(DOOR.x + DOOR.width / 2)}, ${s(DOOR.y + DOOR.height / 2)})`}
+        >
+          {DOOR.label}
         </SvgText>
       </G>
 
-      {/* ── 6. Cashier Desk ("QUẦY THU NGÂN" - Góc dưới trái) ── */}
+      {/* ── 6. Cashier Desk ("QUẦY THU NGÂN" - Góc trên bên trái) ── */}
       <G>
         <Rect
           x={s(CASHIER.x)}
@@ -189,25 +206,25 @@ export function MapCanvas({
         {/* Cashier Icon Badge */}
         <Circle
           cx={s(CASHIER.x + CASHIER.width / 2)}
-          cy={s(CASHIER.y + CASHIER.height / 2) - 80}
-          r={78}
+          cy={s(CASHIER.y + CASHIER.height / 2) - 60}
+          r={75}
           fill={isDark ? "rgba(255, 255, 255, 0.08)" : "#ffffff"}
           stroke={isDark ? "#64748b" : "#475569"}
           strokeWidth={8}
         />
         <SvgText
           x={s(CASHIER.x + CASHIER.width / 2)}
-          y={s(CASHIER.y + CASHIER.height / 2) - 52}
-          fontSize={72}
+          y={s(CASHIER.y + CASHIER.height / 2) - 34}
+          fontSize={68}
           textAnchor="middle"
         >
           {CASHIER.icon}
         </SvgText>
         <SvgText
           x={s(CASHIER.x + CASHIER.width / 2)}
-          y={s(CASHIER.y + CASHIER.height / 2) + 55}
+          y={s(CASHIER.y + CASHIER.height / 2) + 65}
           fill={isDark ? "#cbd5e1" : "#1e293b"}
-          fontSize={54}
+          fontSize={50}
           fontWeight="900"
           textAnchor="middle"
         >
@@ -215,17 +232,17 @@ export function MapCanvas({
         </SvgText>
         <SvgText
           x={s(CASHIER.x + CASHIER.width / 2)}
-          y={s(CASHIER.y + CASHIER.height / 2) + 115}
+          y={s(CASHIER.y + CASHIER.height / 2) + 120}
           fill="#64748b"
-          fontSize={40}
+          fontSize={36}
           fontWeight="700"
           textAnchor="middle"
         >
-          POS CHECKOUT
+          {CASHIER.subLabel}
         </SvgText>
       </G>
 
-      {/* ── 7. Docking Station / Trạm Sạc Robot ── */}
+      {/* ── 7. Docking Station / Trạm Sạc Robot (Cạnh trên giữa Thu Ngân & Kệ 1) ── */}
       <G>
         <Circle cx={s(DOCK.x)} cy={s(DOCK.y)} r={s(DOCK.outerRadius)} fill={canvasBg} stroke="#16a34a" strokeWidth={14} />
         <Circle cx={s(DOCK.x)} cy={s(DOCK.y)} r={s(DOCK.innerRadius) + 20} fill="#16a34a" />
@@ -237,7 +254,7 @@ export function MapCanvas({
         >
           {DOCK.icon}
         </SvgText>
-        <SvgText x={s(DOCK.x)} y={s(DOCK.y) - 125} fill="#15803d" fontSize={52} fontWeight="800" textAnchor="middle">
+        <SvgText x={s(DOCK.x)} y={s(DOCK.y) + s(DOCK.outerRadius) + 55} fill="#15803d" fontSize={46} fontWeight="800" textAnchor="middle">
           DOCK SẠC
         </SvgText>
       </G>
@@ -268,6 +285,13 @@ export function MapCanvas({
           onShelfPress?.(shelf);
           onZonePress?.(shelf);
         };
+
+        // Proportional layout helpers
+        const iconR = isHoriz ? Math.min(95, shH * 0.28) : 85;
+        const iconCx = isHoriz ? shX + iconR + 35 : cX;
+        const rightColX = iconCx + iconR + 25;
+        const rightColW = Math.max(100, shX + shW - rightColX - 25);
+        const rightColMidX = rightColX + rightColW / 2;
 
         return (
           <G
@@ -323,21 +347,21 @@ export function MapCanvas({
             />
 
             {isHoriz ? (
-              /* ── Horizontal Shelf Layout (Kệ 2, Kệ 3) ── */
+              /* ── Horizontal Shelf Layout (Kệ 1, Kệ 2, Kệ 4, Kệ 5, Kệ 6) ── */
               <G>
                 {/* Left Column: Category Icon Badge */}
                 <Circle
-                  cx={shX + 175}
+                  cx={iconCx}
                   cy={cY}
-                  r={110}
+                  r={iconR}
                   fill={isDark ? "rgba(255, 255, 255, 0.08)" : "#ffffff"}
                   stroke={isOos ? "#dc2626" : shelf.themeColor}
-                  strokeWidth={10}
+                  strokeWidth={8}
                 />
                 <SvgText
-                  x={shX + 175}
-                  y={cY + 36}
-                  fontSize={96}
+                  x={iconCx}
+                  y={cY + 28}
+                  fontSize={iconR * 0.9}
                   textAnchor="middle"
                 >
                   {shelf.icon}
@@ -346,18 +370,18 @@ export function MapCanvas({
                 {/* Right Column: Info Stack */}
                 {/* Header Pill: KỆ X · Tag #Y */}
                 <Rect
-                  x={shX + 370}
-                  y={cY - 130}
-                  width={320}
-                  height={74}
-                  rx={20}
+                  x={rightColMidX - Math.min(140, rightColW * 0.46)}
+                  y={cY - 120}
+                  width={Math.min(280, rightColW * 0.92)}
+                  height={62}
+                  rx={18}
                   fill={isOos ? "#dc2626" : shelf.themeColor}
                 />
                 <SvgText
-                  x={shX + 530}
-                  y={cY - 78}
+                  x={rightColMidX}
+                  y={cY - 75}
                   fill="#ffffff"
-                  fontSize={48}
+                  fontSize={40}
                   fontWeight="900"
                   textAnchor="middle"
                 >
@@ -366,10 +390,10 @@ export function MapCanvas({
 
                 {/* Category Text */}
                 <SvgText
-                  x={shX + 530}
-                  y={cY - 8}
+                  x={rightColMidX}
+                  y={cY - 6}
                   fill={isDark ? "#f8fafc" : "#0f172a"}
-                  fontSize={48}
+                  fontSize={42}
                   fontWeight="800"
                   textAnchor="middle"
                 >
@@ -378,20 +402,20 @@ export function MapCanvas({
 
                 {/* Live Density Badge */}
                 <Rect
-                  x={shX + 420}
-                  y={cY + 45}
-                  width={220}
-                  height={68}
-                  rx={18}
+                  x={rightColMidX - Math.min(105, rightColW * 0.38)}
+                  y={cY + 44}
+                  width={Math.min(210, rightColW * 0.76)}
+                  height={58}
+                  rx={16}
                   fill={statusBg}
                   stroke={statusColor}
                   strokeWidth={6}
                 />
                 <SvgText
-                  x={shX + 530}
-                  y={cY + 95}
+                  x={rightColMidX}
+                  y={cY + 88}
                   fill={statusColor}
-                  fontSize={44}
+                  fontSize={38}
                   fontWeight="900"
                   textAnchor="middle"
                 >
@@ -399,22 +423,22 @@ export function MapCanvas({
                 </SvgText>
               </G>
             ) : (
-              /* ── Vertical Shelf Layout (Kệ 1, Kệ 4, Kệ 5, Kệ 6) ── */
+              /* ── Vertical Shelf Layout (Kệ 3) ── */
               <G>
                 {/* Header Pill: KỆ X */}
                 <Rect
-                  x={cX - 120}
+                  x={cX - 110}
                   y={cY - 325}
-                  width={240}
-                  height={76}
-                  rx={22}
+                  width={220}
+                  height={68}
+                  rx={20}
                   fill={isOos ? "#dc2626" : shelf.themeColor}
                 />
                 <SvgText
                   x={cX}
-                  y={cY - 272}
+                  y={cY - 276}
                   fill="#ffffff"
-                  fontSize={50}
+                  fontSize={46}
                   fontWeight="900"
                   textAnchor="middle"
                 >
@@ -424,16 +448,16 @@ export function MapCanvas({
                 {/* Center: Category Icon Badge */}
                 <Circle
                   cx={cX}
-                  cy={cY - 145}
-                  r={95}
+                  cy={cY - 140}
+                  r={85}
                   fill={isDark ? "rgba(255, 255, 255, 0.08)" : "#ffffff"}
                   stroke={isOos ? "#dc2626" : shelf.themeColor}
-                  strokeWidth={10}
+                  strokeWidth={9}
                 />
                 <SvgText
                   x={cX}
-                  y={cY - 112}
-                  fontSize={88}
+                  y={cY - 110}
+                  fontSize={78}
                   textAnchor="middle"
                 >
                   {shelf.icon}
@@ -442,9 +466,9 @@ export function MapCanvas({
                 {/* Category Text */}
                 <SvgText
                   x={cX}
-                  y={cY + 30}
+                  y={cY + 28}
                   fill={isDark ? "#f8fafc" : "#0f172a"}
-                  fontSize={48}
+                  fontSize={42}
                   fontWeight="800"
                   textAnchor="middle"
                 >
@@ -454,9 +478,9 @@ export function MapCanvas({
                 {/* Tag & Aisle */}
                 <SvgText
                   x={cX}
-                  y={cY + 95}
+                  y={cY + 88}
                   fill="#64748b"
-                  fontSize={38}
+                  fontSize={34}
                   fontWeight="700"
                   textAnchor="middle"
                 >
@@ -465,20 +489,20 @@ export function MapCanvas({
 
                 {/* Live Density Badge */}
                 <Rect
-                  x={cX - 110}
-                  y={cY + 160}
-                  width={220}
-                  height={72}
-                  rx={18}
+                  x={cX - 95}
+                  y={cY + 148}
+                  width={190}
+                  height={66}
+                  rx={16}
                   fill={statusBg}
                   stroke={statusColor}
                   strokeWidth={6}
                 />
                 <SvgText
                   x={cX}
-                  y={cY + 212}
+                  y={cY + 196}
                   fill={statusColor}
-                  fontSize={44}
+                  fontSize={38}
                   fontWeight="900"
                   textAnchor="middle"
                 >

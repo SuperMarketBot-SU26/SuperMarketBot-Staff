@@ -33,8 +33,8 @@ export interface UseRobotMqttResult {
 }
 
 const MQTT_CONFIG = {
-  host: '60922debd474446a84747b871c4a8182.s1.eu.hivemq.cloud',
-  port: 8884,
+  host: 'l07702d7.ala.asia-southeast1.emqxsl.com',
+  port: 8084,
   path: '/mqtt',
   username: 'Smartmarketbot',
   password: 'Passsep490',
