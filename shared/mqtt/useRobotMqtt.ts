@@ -260,29 +260,23 @@ export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttRe
       }
     };
 
-    client.onMessageArrived = (message) => {
-      const topic = message.destinationName;
-      const payload = message.payloadString;
-      if (
-        topic.includes('/telemetry') ||
-        topic.includes('/status') ||
-        topic.includes('/navigation_status')
-      ) {
-        processIncomingPayload(payload, topic);
-      }
-    };
+    let client: any = null;
 
     try {
-      client.connect({
-        useSSL: MQTT_CONFIG.useSSL,
-        userName: MQTT_CONFIG.username,
-        password: MQTT_CONFIG.password,
-        timeout: 8,
-        keepAliveInterval: 30,
-        cleanSession: true,
-        onSuccess: () => {
-          if (!isMountedRef.current) return;
-          console.log('[useRobotMqtt] Successfully connected to HiveMQ Cloud MQTT WSS!');
+      console.log('[useRobotMqtt] Connecting to EMQX Cloud MQTT WSS...', MQTT_BROKER_URL);
+      client = mqtt.connect(MQTT_BROKER_URL, {
+        clientId: `StaffApp_${Math.random().toString(16).substring(2, 8)}`,
+        username: MQTT_USERNAME,
+        password: MQTT_PASSWORD,
+        clean: true,
+        connectTimeout: 5000,
+        reconnectPeriod: 3000,
+      });
+
+      client.on('connect', () => {
+        if (isMountedRef.current) {
+          setIsMqttConnected(true);
+          console.log('[useRobotMqtt] Successfully connected to EMQX Cloud MQTT WSS!');
           setConnectionState('MQTT_WSS');
 
           // Subscribe to telemetry, status, and navigation_status
