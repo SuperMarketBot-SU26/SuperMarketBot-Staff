@@ -142,6 +142,19 @@ export interface RestockTaskListResponseDto {
   tasks: RestockTaskDto[];
 }
 
+export interface RobotIncidentDto {
+  incidentId: string;
+  robotCode: string;
+  incidentType: string;
+  batteryPct: number;
+  targetDockNodeId: number | null;
+  status: 'PENDING' | 'CHARGING' | 'RESOLVED';
+  reportedAtUtc: string;
+  resolvedAtUtc: string | null;
+  resolvedByStaffName: string | null;
+  description: string;
+}
+
 /**
  * UI-normalized task shape consumed by the Cảnh Báo screen.
  * The screen merges restock tasks (`StaffTask`) and robot-derived alerts

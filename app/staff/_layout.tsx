@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStaffRealtime } from '@/shared/realtime/StaffRealtimeContext';
-import { listRestockTasks } from '@/shared/api/tasks';
+import { listRestockTasks, listRobotIncidents } from '@/shared/api/tasks';
 
 export default function StaffLayout() {
   const { status } = useAuth();
@@ -17,8 +17,12 @@ export default function StaffLayout() {
 
   const fetchPendingTasks = useCallback(async () => {
     try {
-      const tasks = await listRestockTasks();
-      setPendingCount(tasks.length);
+      const [tasks, incidents] = await Promise.all([
+        listRestockTasks(),
+        listRobotIncidents(),
+      ]);
+      const pendingIncidents = incidents.filter((i) => i.status === 'PENDING').length;
+      setPendingCount(tasks.length + pendingIncidents);
     } catch {
       // ignore
     }

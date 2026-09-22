@@ -12,11 +12,12 @@ import type {
     RestockPriority,
     RestockTaskDto,
     RestockTaskListResponseDto,
+    RobotIncidentDto,
     StaffProfileDto,
     StaffTask,
 } from "./types";
 
-export type { RestockPriority, RestockTaskDto, StaffProfileDto, StaffTask };
+export type { RestockPriority, RestockTaskDto, RobotIncidentDto, StaffProfileDto, StaffTask };
 
 function isRestockError(t: RestockTaskDto): boolean {
   return t.currentQuantity === 0 || t.priority === "High";
@@ -111,5 +112,32 @@ export async function getStaffProfile(accountId?: number): Promise<StaffProfileD
   const query = accountId ? `?accountId=${accountId}` : "";
   const { data } = await apiRequest<StaffProfileDto>(`/api/staff/profile${query}`);
   return data;
+}
+
+/**
+ * [INCIDENTS] List robot emergency incidents (e.g., low battery, obstacle).
+ */
+export async function listRobotIncidents(): Promise<RobotIncidentDto[]> {
+  try {
+    const { data } = await apiRequest<RobotIncidentDto[]>("/api/staff/incidents");
+    return data || [];
+  } catch (e) {
+    console.warn("Error fetching robot incidents", e);
+    return [];
+  }
+}
+
+/**
+ * [INCIDENTS] Acknowledge robot charging handled by staff.
+ */
+export async function acknowledgeCharging(
+  incidentId: string,
+  staffName?: string
+): Promise<boolean> {
+  await apiRequest(`/api/staff/incidents/${incidentId}/acknowledge-charging`, {
+    method: "POST",
+    body: { staffName: staffName || "Nhân viên trực ca" },
+  });
+  return true;
 }
 
