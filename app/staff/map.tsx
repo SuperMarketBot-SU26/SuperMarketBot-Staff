@@ -17,7 +17,7 @@ export default function StaffMapPage() {
   const [loading, setLoading] = useState(true);
   const [hudExpanded, setHudExpanded] = useState(false); // Collapsed by default so map is fully visible!
 
-  // 1. Direct MQTT Hook (HiveMQ Cloud WSS with SignalR Fallback)
+  // 1. Direct MQTT Hook (EMQX Cloud WSS with SignalR Fallback)
   const {
     telemetry,
     connectionState,

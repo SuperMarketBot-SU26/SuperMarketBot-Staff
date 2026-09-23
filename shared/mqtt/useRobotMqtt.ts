@@ -238,7 +238,7 @@ export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttRe
     }
   }, [targetRobotCode]);
 
-  // 1. Initialize Direct MQTT (HiveMQ Cloud WSS)
+  // 1. Initialize Direct MQTT (EMQX Cloud WSS)
   useEffect(() => {
     isMountedRef.current = true;
     const clientId = `staff_fe_${Math.random().toString(16).substring(2, 8)}`;
@@ -260,22 +260,29 @@ export function useRobotMqtt(targetRobotCode: string = 'RB0001'): UseRobotMqttRe
       }
     };
 
-    let client: any = null;
+    client.onMessageArrived = (message) => {
+      const topic = message.destinationName;
+      const payload = message.payloadString;
+      if (
+        topic.includes('/telemetry') ||
+        topic.includes('/status') ||
+        topic.includes('/navigation_status')
+      ) {
+        processIncomingPayload(payload, topic);
+      }
+    };
 
     try {
-      console.log('[useRobotMqtt] Connecting to EMQX Cloud MQTT WSS...', MQTT_BROKER_URL);
-      client = mqtt.connect(MQTT_BROKER_URL, {
-        clientId: `StaffApp_${Math.random().toString(16).substring(2, 8)}`,
-        username: MQTT_USERNAME,
-        password: MQTT_PASSWORD,
-        clean: true,
-        connectTimeout: 5000,
-        reconnectPeriod: 3000,
-      });
-
-      client.on('connect', () => {
-        if (isMountedRef.current) {
-          setIsMqttConnected(true);
+      console.log('[useRobotMqtt] Connecting to EMQX Cloud MQTT WSS...', MQTT_CONFIG.host);
+      client.connect({
+        useSSL: MQTT_CONFIG.useSSL,
+        userName: MQTT_CONFIG.username,
+        password: MQTT_CONFIG.password,
+        timeout: 8,
+        keepAliveInterval: 30,
+        cleanSession: true,
+        onSuccess: () => {
+          if (!isMountedRef.current) return;
           console.log('[useRobotMqtt] Successfully connected to EMQX Cloud MQTT WSS!');
           setConnectionState('MQTT_WSS');
 
